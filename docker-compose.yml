@@ -26,11 +26,9 @@ services:
       - "5000:5000"
 
   frontend:
-    image: node:18
-    working_dir: /app
-    volumes:
-      - ./frontend:/app
-    command: npm start
+    build: ./frontend
+    container_name: frontend
+    restart: always
     ports:
       - "3000:3000"
     environment:
