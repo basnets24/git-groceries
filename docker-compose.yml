@@ -31,8 +31,12 @@ services:
     restart: always
     ports:
       - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
     environment:
       - HOST=0.0.0.0
+      - WATCHPACK_POLLING=true
 
   apache:
     build: ./apache
