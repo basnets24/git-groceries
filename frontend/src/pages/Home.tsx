@@ -268,6 +268,26 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: 600,
     color: "#2d6a4f",
   },
+  deliveryBotsSection: {
+    padding: "4rem 1rem",
+    backgroundColor: "#ffffff",
+    textAlign: "center",
+  },
+  deliveryBotsText: {
+    fontSize: "1.1rem",
+    color: "#6c757d",
+    marginBottom: "1.5rem",
+  },
+  deliveryBotsButton: {
+    display: "inline-block",
+    backgroundColor: "#2d6a4f",
+    color: "#ffffff",
+    padding: "1rem 2rem",
+    borderRadius: "6px",
+    textDecoration: "none",
+    fontWeight: 600,
+    fontSize: "1rem",
+  },
 };
 
 export default Home;
