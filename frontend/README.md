@@ -12,3 +12,11 @@
 - Follows API format specified in [design doc](https://docs.google.com/document/d/1WdLFmX76qNhcSmgcOhBuMyk9vpBDziqBD6mN6q7LATI/edit?tab=t.oerjw6a710j3), (username/email + password hash)
 - implement password hashing and send up to server for verfication
 - wait for verification, then load user data
+- TODO: add/send username + hash to server secure
+
+## Home Page
+- Should act as a router to all the pages 
+- Should contain components/info about cart, copy amazons layout 
+
+## Product Catalog
+- should dynamically pull items from database and render them along with info and ratings/etc
