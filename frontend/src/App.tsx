@@ -9,11 +9,14 @@ import Orders from "./pages/Orders";
 import About from "./pages/About";
 import Register from "./pages/Register";
 import Delivery from "./pages/Delivery";
+import Inventory from "./pages/Inventory";
+import DeliveryBots from "./pages/DeliveryBots";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public routes */}
         <Route path="/" element={<Home />} />
         <Route path="/catalog" element={<Catalog />} />
         <Route path="/cart" element={<Cart />} />
@@ -22,6 +25,10 @@ function App() {
         <Route path="/delivery" element={<Delivery />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/delivery-bots" element={<DeliveryBots />} />
+
+        {/* Hidden employee routes - not linked in navbar */}
+        <Route path="/employee/inventory" element={<Inventory />} />
       </Routes>
     </BrowserRouter>
   );

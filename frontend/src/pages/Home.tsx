@@ -105,6 +105,19 @@ const Home: React.FC = () => {
         </div>
       </section>
 
+      {/* Delivery Bots Section */}
+      <section style={styles.deliveryBotsSection}>
+        <div style={styles.sectionContainer}>
+          <h2 style={styles.sectionTitle}>Track Your Delivery</h2>
+          <p style={styles.deliveryBotsText}>
+            Our automated delivery bots ensure your order arrives fresh and on time.
+          </p>
+          <Link to="/delivery-bots" style={styles.deliveryBotsButton}>
+            View Delivery Bots
+          </Link>
+        </div>
+      </section>
+
       <Footer />
     </div>
   );
