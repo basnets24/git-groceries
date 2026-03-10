@@ -19,14 +19,14 @@ CREATE TABLE ProductCategory (
     ProductCategoryID INT AUTO_INCREMENT PRIMARY KEY,
 
     Name            VARCHAR(50) NOT NULL
-)
+);
 
 CREATE TABLE Product (
     ProductID       INT AUTO_INCREMENT PRIMARY KEY,
 
     Name                VARCHAR(50)   NOT NULL,
     Price               DECIMAL(7,2)  NOT NULL,
-    WeightLbs           DECIMAL(7,2)  NOT NULL UNIQUE, 
+    WeightLbs           DECIMAL(7,2)  NOT NULL, 
     ProductCategoryID   INT           NOT NULL,
     IsActive            BOOLEAN       NOT NULL DEFAULT TRUE, 
 
@@ -46,8 +46,8 @@ CREATE TABLE Inventory (
         ON DELETE CASCADE
 );
 
-CREATE TABLE Order (
-    OrderID     INT AUTO_INCREMENT PRIMARY KEY,
+CREATE TABLE ShoppingOrder (
+    ShoppingOrderID     INT AUTO_INCREMENT PRIMARY KEY,
     
     CustomerID  INT             NOT NULL,
     Street      VARCHAR(100)    NOT NULL,
@@ -61,16 +61,16 @@ CREATE TABLE Order (
         ON DELETE RESTRICT
 );
 
-CREATE TABLE OrderItem (
-    OrderID             INT NOT NULL,
+CREATE TABLE ShoppingOrderItem (
+    ShoppingOrderID             INT NOT NULL,
     ProductID           INT NOT NULL,
-    PRIMARY KEY (OrderID, ProductID),
+    PRIMARY KEY (ShoppingOrderID, ProductID),
 
     Quantity      	    INT UNSIGNED  NOT NULL,
     PriceAtCheckout	    DECIMAL(7,2)  NOT NULL,
     WeightAtCheckout    DECIMAL(7,2)  NOT NULL,
 
-    FOREIGN KEY (OrderID) REFERENCES Order(OrderID)
+    FOREIGN KEY (ShoppingOrderID) REFERENCES ShoppingOrder(ShoppingOrderID)
         ON UPDATE CASCADE
         ON DELETE CASCADE,
     FOREIGN KEY (ProductID) REFERENCES Product(ProductID)
@@ -81,14 +81,14 @@ CREATE TABLE OrderItem (
 CREATE TABLE Payment (
     PaymentID   INT AUTO_INCREMENT PRIMARY KEY,
 
-    OrderID     INT             NOT NULL,
+    ShoppingOrderID     INT             NOT NULL,
     Provider    VARCHAR(50)     NOT NULL,
     ProviderRef VARCHAR(100)    NOT NULL UNIQUE,
     Amount      DECIMAL(7,2)    NOT NULL,
     OccurredAt  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     Status      ENUM('PENDING','SUCCESS','FAILED','REFUNDED') NOT NULL DEFAULT 'PENDING',
 
-    FOREIGN KEY (OrderID) REFERENCES Order(OrderID)
+    FOREIGN KEY (ShoppingOrderID) REFERENCES ShoppingOrder(ShoppingOrderID)
         ON UPDATE CASCADE
         ON DELETE CASCADE
 );
@@ -101,12 +101,12 @@ CREATE TABLE DeliveryTrip (
     DeliveryTripID  INT AUTO_INCREMENT PRIMARY KEY,
 
     Status  ENUM('NOTSTARTED', 'INPROGRESS','COMPLETED','ERROR') NOT NULL DEFAULT 'NOTSTARTED'
-)
+);
 
 CREATE TABLE TripStop (
     DeliveryTripID  INT         NOT NULL,
-    OrderID     INT             NOT NULL,
-    PRIMARY KEY (DeliveryTripID, OrderID),
+    ShoppingOrderID     INT             NOT NULL,
+    PRIMARY KEY (DeliveryTripID, ShoppingOrderID),
 
     StopIndex   INT NOT NULL,
     ETA         DATETIME,       
@@ -116,7 +116,7 @@ CREATE TABLE TripStop (
     FOREIGN KEY (DeliveryTripID) REFERENCES DeliveryTrip(DeliveryTripID)
         ON UPDATE CASCADE
         ON DELETE CASCADE,
-    FOREIGN KEY (OrderID) REFERENCES Order(OrderID)
+    FOREIGN KEY (ShoppingOrderID) REFERENCES ShoppingOrder(ShoppingOrderID)
         ON UPDATE CASCADE
         ON DELETE CASCADE
-)
+);

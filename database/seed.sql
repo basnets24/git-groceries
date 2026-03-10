@@ -47,13 +47,13 @@ VALUES
     (9, 45, 1),
     (10, 70, 4);
 
-INSERT INTO Order (CustomerID, Street, City, State, Zip, Status)
+INSERT INTO ShoppingOrder (CustomerID, Street, City, State, Zip, Status)
 VALUES
     (1, '123 Maple St', 'San Jose', 'CA', '95112', 'COMPLETED'),
     (2, '456 Willow Ave', 'San Jose', 'CA', '95126', 'COMPLETED'),
     (3, '789 Cedar Dr', 'Santa Clara', 'CA', '95050', 'INPROGRESS');
 
-INSERT INTO OrderItem (OrderID, ProductID, Quantity, PriceAtCheckout, WeightAtCheckout)
+INSERT INTO ShoppingOrderItem (ShoppingOrderID, ProductID, Quantity, PriceAtCheckout, WeightAtCheckout)
 VALUES
     -- Order 1
     (1, 1, 2, 1.99, 2.50),
@@ -70,7 +70,7 @@ VALUES
     (3, 4, 2, 3.49, 1.50),
     (3, 7, 1, 8.99, 1.00);
 
-INSERT INTO Payment (OrderID, Provider, ProviderRef, Amount, OccurredAt, Status)
+INSERT INTO Payment (ShoppingOrderID, Provider, ProviderRef, Amount, OccurredAt, Status)
 VALUES
     (1, 'Stripe', 'ch_7A81KD2', 11.76, '2026-03-08 10:14:22', 'SUCCESS'),
     (2, 'Stripe', 'ch_7A81KD3', 18.97, '2026-03-08 11:32:10', 'SUCCESS'),
@@ -82,7 +82,7 @@ VALUES
     ('INPROGRESS'),
     ('NOTSTARTED');
 
-INSERT INTO TripStop (DeliveryTripID, OrderID, StopIndex, ETA)
+INSERT INTO TripStop (DeliveryTripID, ShoppingOrderID, StopIndex, ETA)
 VALUES
     (1, 1, 1, '2026-03-08 12:00:00'),
     (1, 2, 2, '2026-03-08 12:20:00'),
