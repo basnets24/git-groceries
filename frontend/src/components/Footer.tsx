@@ -7,22 +7,26 @@ const Footer: React.FC = () => {
       <div style={styles.container}>
         <div style={styles.section}>
           <h3 style={styles.heading}>OFS - Organic Food Store</h3>
-          <p style={styles.text}>
-            Bringing fresh, organic produce directly to your doorstep since 2024.
-          </p>
+          <p style={styles.text}></p>
         </div>
         <div style={styles.section}>
           <h4 style={styles.subHeading}>Quick Links</h4>
           <div style={styles.links}>
-            <Link to="/catalog" style={styles.link}>Catalog</Link>
-            <Link to="/about" style={styles.link}>About Us</Link>
-            <Link to="/delivery" style={styles.link}>Delivery Info</Link>
+            <Link to="/catalog" style={styles.link}>
+              Catalog
+            </Link>
+            <Link to="/about" style={styles.link}>
+              About Us
+            </Link>
+            <Link to="/delivery" style={styles.link}>
+              Delivery Info
+            </Link>
           </div>
         </div>
         <div style={styles.section}>
           <h4 style={styles.subHeading}>Contact</h4>
           <p style={styles.text}>Email: support@ofs.com</p>
-          <p style={styles.text}>Phone: (555) 123-4567</p>
+          <p style={styles.text}>Phone: (123) 456-7891</p>
         </div>
         <div style={styles.section}>
           <h4 style={styles.subHeading}>Follow Us</h4>
@@ -35,7 +39,8 @@ const Footer: React.FC = () => {
       </div>
       <div style={styles.bottomBar}>
         <p style={styles.copyright}>
-          &copy; {new Date().getFullYear()} OFS - Organic Food Store. All rights reserved.
+          &copy; {new Date().getFullYear()} OFS - Organic Food Store. All rights
+          reserved.
         </p>
       </div>
     </footer>

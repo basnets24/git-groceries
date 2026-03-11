@@ -49,11 +49,23 @@ const Catalog: React.FC = () => {
     }));
   };
 
-  const handleAddToCart = (product: Product) => {
+  const handleAddToCart = async (product: Product) => {
     const quantity = quantities[product.id] || 1;
-    // TODO: Implement add to cart functionality
-    console.log(`Added ${quantity} x ${product.name} to cart`);
-    alert(`Added ${quantity} x ${product.name} to cart!`);
+    try {
+      const response = await fetch("/api/cart/1", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product_id: product.id, quantity }),
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Failed to add to cart");
+      }
+      alert(`Added ${quantity} x ${product.name} to cart!`);
+      setQuantities((prev) => ({ ...prev, [product.id]: 1 }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to add to cart");
+    }
   };
 
   return (

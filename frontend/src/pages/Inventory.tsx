@@ -42,15 +42,27 @@ const Inventory: React.FC = () => {
     setEditQuantity(item.quantity);
   };
 
-  const handleSaveQuantity = (id: number) => {
-    // TODO: Implement API call to update quantity
-    setInventory((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, quantity: editQuantity } : item
-      )
-    );
-    setEditingId(null);
-    console.log(`Updated product ${id} quantity to ${editQuantity}`);
+  const handleSaveQuantity = async (id: number) => {
+    try {
+      const response = await fetch(`/api/inventory/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantity: editQuantity }),
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Failed to update quantity");
+      }
+      const data = await response.json();
+      setInventory((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, quantity: data.item.quantity } : item
+        )
+      );
+      setEditingId(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update quantity");
+    }
   };
 
   const handleCancelEdit = () => {
