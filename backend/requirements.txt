@@ -4,3 +4,4 @@ mysql-connector-python
 stripe
 requests
 python-dotenv
+bcrypt

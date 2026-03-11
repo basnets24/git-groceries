@@ -1,28 +1,18 @@
-import os
-
-import mysql.connector
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+
+from routes.auth import auth_bp
 
 app = Flask(__name__)
 CORS(app)
 
 LOW_STOCK_THRESHOLD = 20
 
-
-def get_db():
-    return mysql.connector.connect(
-        host=os.environ.get("MYSQL_HOST", "mysql"),
-        user=os.environ.get("MYSQL_USER", "mechanism"),
-        password=os.environ.get("MYSQL_PASSWORD", "hellohello"),
-        database=os.environ.get("MYSQL_DATABASE", "cs160_db"),
-    )
-
-
 @app.route("/api/health")
 def health():
     return {"status": "OK"}
 
+app.register_blueprint(auth_bp)
 
 @app.route("/api/products")
 def get_products():
