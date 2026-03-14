@@ -2,8 +2,20 @@ from flask import Blueprint, request, jsonify
 import bcrypt
 from db import get_db_connection
 import mysql.connector
+import re
 
 auth_bp = Blueprint("auth", __name__)
+
+def validate_password(password):
+    if len(password) < 8:
+        return "Password must be at least 8 characters long."
+    if not re.search(r"[A-Z]", password):
+        return "Password must contain at least one uppercase letter."
+    if not re.search(r"[a-z]", password):
+        return "Password must contain at least one lowercase letter."
+    if not re.search(r"\d", password):
+        return "Password must contain at least one number."
+    return None
 
 
 @auth_bp.route("/api/auth/login", methods=["POST"])
@@ -46,6 +58,10 @@ def register():
     username = data["username"]
     email = data["email"]
     password = data["password"]
+
+    pw_error = validate_password(password)
+    if pw_error:
+        return jsonify({"error": pw_error}), 400
 
     db = get_db_connection()
     cursor = db.cursor()
