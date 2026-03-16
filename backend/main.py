@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 from routes.auth import auth_bp
+from db import get_db_connection
 
 app = Flask(__name__)
 CORS(app)
@@ -17,7 +18,7 @@ app.register_blueprint(auth_bp)
 @app.route("/api/products")
 def get_products():
     """Return all active products from the database."""
-    conn = get_db()
+    conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
         """
@@ -47,7 +48,7 @@ def get_products():
 @app.route("/api/inventory")
 def get_inventory():
     """Return inventory joined with product info."""
-    conn = get_db()
+    conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
         """
@@ -83,7 +84,7 @@ def update_inventory(product_id):
     if not isinstance(quantity, int) or quantity < 0:
         return jsonify({"error": "Quantity must be a non-negative integer"}), 400
 
-    conn = get_db()
+    conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
     cursor.execute(
@@ -132,7 +133,7 @@ def create_product():
     if data is None or not all(k in data for k in required):
         return jsonify({"error": f"Missing required fields: {required}"}), 400
 
-    conn = get_db()
+    conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
     cursor.execute(
@@ -182,7 +183,7 @@ def create_product():
 @app.route("/api/cart/<int:customer_id>")
 def get_cart(customer_id):
     """Get the active cart (INPROGRESS order) for a customer."""
-    conn = get_db()
+    conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
     cursor.execute(
@@ -226,7 +227,7 @@ def add_to_cart(customer_id):
     if not isinstance(quantity, int) or quantity < 1:
         return jsonify({"error": "Quantity must be a positive integer"}), 400
 
-    conn = get_db()
+    conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
     # Verify customer exists
