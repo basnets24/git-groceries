@@ -5,3 +5,4 @@ stripe
 requests
 python-dotenv
 bcrypt
+pyjwt

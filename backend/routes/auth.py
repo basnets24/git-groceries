@@ -1,10 +1,41 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 import bcrypt
-from db import get_db_connection
 import mysql.connector
 import re
+import jwt
+import datetime
+from dotenv import load_dotenv
+import os
+from db import get_db_connection
+
+load_dotenv()
 
 auth_bp = Blueprint("auth", __name__)
+
+JWT_TOKEN_SECRET = os.getenv("JWT_SECRET")
+
+# creates JWT Token for user login session
+def create_token(user):
+    payload = {
+        "customerID": user["CustomerID"],
+        "username": user["Username"],
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)
+        # login session lasts 2 hrs
+    }
+
+    token = jwt.encode(payload, JWT_TOKEN_SECRET, algorithm="HS256")
+    return token
+
+
+def decode_token(token):
+    try:
+        decoded = jwt.decode(token, JWT_TOKEN_SECRET, algorithms=["HS256"])
+        return decoded
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
 
 def validate_password(password):
     if len(password) < 8:
@@ -41,10 +72,13 @@ def login():
         return jsonify({"error": "Invalid username/email or password"}), 401
     
     if bcrypt.checkpw(password.encode(), user["PasswordHash"].encode()):
+        token = create_token(user)
+
         return jsonify({
             "message": "Login successful",
+            "token": token,
             "customerID": user["CustomerID"],
-            "username:": user["Username"]
+            "username": user["Username"]
         })
     
     return jsonify({"error": "Invalid username/email or password"}), 401
@@ -84,3 +118,24 @@ def register():
 
     except mysql.connector.errors.IntegrityError:
         return jsonify({"error": "Email already exists"}), 400
+
+
+@auth_bp.route("/api/auth/me", methods=["GET"])
+def get_current_user():
+    auth_header = request.headers.get("Authorization")
+
+    if not auth_header:
+        return jsonify({"error": "Missing token"}), 401
+    if not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Invalid token format"}), 401
+    
+    token = auth_header.split(" ")[1]
+    decoded = decode_token(token)
+
+    if not decoded:
+        return jsonify({"error": "Invalid or expired token"}), 401
+
+    return jsonify({
+        "customerID": decoded["customerID"],
+        "username": decoded["username"]
+    })

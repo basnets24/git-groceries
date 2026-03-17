@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./App.css";
 import Login from "./Login";
+import Logout from "./Logout";
 import Home from "./pages/Home";
 import Catalog from "./pages/Catalog";
 import Cart from "./pages/Cart";
@@ -11,6 +12,7 @@ import Register from "./pages/Register";
 import Delivery from "./pages/Delivery";
 import Inventory from "./pages/Inventory";
 import DeliveryBots from "./pages/DeliveryBots";
+
 
 function App() {
   return (
@@ -24,6 +26,7 @@ function App() {
         <Route path="/about" element={<About />} />
         <Route path="/delivery" element={<Delivery />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/logout" element={<Logout />} />
         <Route path="/register" element={<Register />} />
         <Route path="/delivery-bots" element={<DeliveryBots />} />
 

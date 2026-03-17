@@ -25,6 +25,13 @@ const Login: React.FC = () => {
       const data = await response.json();
 
       if (response.ok) {
+        localStorage.setItem("token", data.token);
+
+        localStorage.setItem("user", JSON.stringify({
+          customerID: data.customerID,
+          username: data.username
+        }));
+
         alert(`Welcome ${data.username}!`);
         navigate("/");
       } else {

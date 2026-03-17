@@ -1,7 +1,35 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 
+
 const Navbar: React.FC = () => {
+
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+
+    if (token) {
+      fetch("/api/auth/me", {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+        .then(res => {
+          if (!res.ok) throw new Error("Not authenticated");
+          return res.json();
+        })
+        .then(data => {
+          setUser(data);
+        })
+        .catch(() => {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          setUser(null);
+        });
+    }
+  }, []);
+
   return (
     <nav style={styles.navbar}>
       <div style={styles.container}>
@@ -25,12 +53,14 @@ const Navbar: React.FC = () => {
             About
           </Link>
           <div style={styles.authLinks}>
-            <Link to="/login" style={styles.loginLink}>
-              Login
-            </Link>
-            <Link to="/register" style={styles.registerLink}>
-              Register
-            </Link>
+            {user ? (
+              <Link to="/logout" style={styles.loginLink}>Logout ({user.username})</Link>
+            ) : (
+              <>
+                <Link to="/login" style={styles.loginLink}>Login</Link>
+                <Link to="/register" style={styles.registerLink}>Register</Link>
+              </>
+            )}
           </div>
         </div>
       </div>
