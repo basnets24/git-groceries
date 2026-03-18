@@ -9,6 +9,7 @@ interface Product {
   category: string;
   image: string;
   description: string;
+  weight: number;
 }
 
 const Catalog: React.FC = () => {
@@ -16,6 +17,22 @@ const Catalog: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [quantities, setQuantities] = useState<{ [key: number]: number }>({});
+  const [sortField, setSortField] = useState<"price" | "name" | "weight">("price");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+
+  const sortedProducts = [...products].sort((a, b) => {
+    let comparison = 0;
+
+    if (sortField === "price") {
+      comparison = a.price - b.price;
+    } else if (sortField === "name") {
+      comparison = a.name.localeCompare(b.name);
+    } else if (sortField === "weight") {
+      comparison = a.weight - b.weight;
+    }
+
+    return sortOrder === "asc" ? comparison : -comparison;
+  });
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -98,9 +115,25 @@ const Catalog: React.FC = () => {
             </div>
           )}
 
+          <select
+            value={sortField}
+            onChange={(e) => setSortField(e.target.value as any)}
+          >
+            <option value="price">Price</option>
+            <option value="name">Name</option>
+            <option value="weight">Weight</option>
+          </select>
+          <button
+            onClick={() =>
+              setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
+            }
+          >
+            {sortOrder === "asc" ? "Ascending ↑" : "Descending ↓"}
+          </button>
+
           {!loading && !error && (
             <div style={styles.productsGrid}>
-              {products.map((product) => (
+              {sortedProducts.map((product) => (
                 <div key={product.id} style={styles.productCard}>
                   <div style={styles.imageContainer}>
                     {product.image ? (
@@ -119,8 +152,9 @@ const Catalog: React.FC = () => {
                     <span style={styles.categoryBadge}>{product.category}</span>
                     <h3 style={styles.productName}>{product.name}</h3>
                     <p style={styles.productDescription}>{product.description}</p>
+                    <p style={styles.productWeight}>{product.weight.toFixed(2)} lbs</p>
                     <p style={styles.productPrice}>${product.price.toFixed(2)}</p>
-                    
+
                     <div style={styles.quantityContainer}>
                       <button
                         onClick={() => handleQuantityChange(product.id, -1)}
@@ -289,6 +323,11 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "#6c757d",
     marginBottom: "0.75rem",
     lineHeight: 1.4,
+  },
+  productWeight: {
+    fontSize: "0.95rem",
+    color: "#6c757d",
+    marginBottom: "0.75rem",
   },
   productPrice: {
     fontSize: "1.35rem",
