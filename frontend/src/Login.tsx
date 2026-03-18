@@ -4,11 +4,15 @@ import { useNavigate } from "react-router-dom";
 const Login: React.FC = () => {
   const [emailOrUsername, setEmailOrUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setSuccess(null);
 
     try {
       const response = await fetch("/api/auth/login", {
@@ -32,14 +36,16 @@ const Login: React.FC = () => {
           username: data.username
         }));
 
-        alert(`Welcome ${data.username}!`);
-        navigate("/");
+        setSuccess(`Welcome ${data.username}! Redirecting...`);
+        setTimeout(() => {
+          navigate("/");
+        }, 1000);
       } else {
-        alert(data.error || "Login failed. Try again.");
+        setError(data.error || "Login failed. Try again.");
       }
     } catch (err) {
       console.error(err);
-      alert("Server error. Try again.");
+      setError("Server error. Try again.");
     }
   };
 
@@ -47,6 +53,8 @@ const Login: React.FC = () => {
     <div style={styles.container}>
       <form onSubmit={handleSubmit} style={styles.form}>
         <h2 style={styles.title}>Login</h2>
+        {error && <div style={styles.errorBox}>{error}</div>}
+        {success && <div style={styles.successBox}>{success}</div>}
         <div style={styles.field}>
           <label htmlFor="emailOrUsername" style={styles.label}>
             Email or Username
@@ -103,6 +111,26 @@ const styles: { [key: string]: React.CSSProperties } = {
     textAlign: "center",
     marginBottom: "1.5rem",
     color: "#333",
+  },
+  errorBox: {
+    backgroundColor: "#f8d7da",
+    color: "#721c24",
+    padding: "0.75rem",
+    borderRadius: "4px",
+    marginBottom: "1rem",
+    border: "1px solid #f5c6cb",
+    textAlign: "center",
+    fontSize: "0.9rem",
+  },
+  successBox: {
+    backgroundColor: "#d4edda",
+    color: "#155724",
+    padding: "0.75rem",
+    borderRadius: "4px",
+    marginBottom: "1rem",
+    border: "1px solid #c3e6cb",
+    textAlign: "center",
+    fontSize: "0.9rem",
   },
   field: {
     marginBottom: "1rem",

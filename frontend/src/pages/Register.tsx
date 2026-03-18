@@ -10,6 +10,8 @@ const Register: React.FC = () => {
     password: "",
     confirmPassword: "",
   });
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -18,8 +20,11 @@ const Register: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setSuccess(null);
+
     if (formData.password !== formData.confirmPassword) {
-      alert("Passwords do not match");
+      setError("Passwords do not match");
       return;
     }
 
@@ -39,15 +44,17 @@ const Register: React.FC = () => {
       const data = await response.json();
 
       if (response.ok) {
-        alert("Account created! Please login.");
-        window.location.href = "/login";
+        setSuccess("Account created! Redirecting to login...");
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 1500);
       } else {
-        alert(data.error || "Registration failed");
+        setError(data.error || "Registration failed");
       }
 
     } catch (error) {
       console.error(error);
-      alert("Server error. Please try again later.");
+      setError("Server error. Please try again later.");
     }
   };
 
@@ -59,6 +66,9 @@ const Register: React.FC = () => {
           <form onSubmit={handleSubmit} style={styles.form}>
             <h2 style={styles.title}>Create Account</h2>
             
+            {error && <div style={styles.errorBox}>{error}</div>}
+            {success && <div style={styles.successBox}>{success}</div>}
+
             <div style={styles.field}>
               <label htmlFor="username" style={styles.label}>
                 Username
@@ -171,6 +181,26 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "#1b4332",
     fontSize: "1.75rem",
     fontWeight: 700,
+  },
+  errorBox: {
+    backgroundColor: "#f8d7da",
+    color: "#721c24",
+    padding: "0.75rem",
+    borderRadius: "6px",
+    marginBottom: "1.25rem",
+    border: "1px solid #f5c6cb",
+    textAlign: "center",
+    fontSize: "0.95rem",
+  },
+  successBox: {
+    backgroundColor: "#d4edda",
+    color: "#155724",
+    padding: "0.75rem",
+    borderRadius: "6px",
+    marginBottom: "1.25rem",
+    border: "1px solid #c3e6cb",
+    textAlign: "center",
+    fontSize: "0.95rem",
   },
   field: {
     marginBottom: "1rem",
