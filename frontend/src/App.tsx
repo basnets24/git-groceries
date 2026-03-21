@@ -12,28 +12,31 @@ import Register from "./pages/Register";
 import Delivery from "./pages/Delivery";
 import Inventory from "./pages/Inventory";
 import DeliveryBots from "./pages/DeliveryBots";
+import { AuthProvider } from "./context/AuthContext";
 
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Public routes */}
-        <Route path="/" element={<Home />} />
-        <Route path="/catalog" element={<Catalog />} />
-        <Route path="/cart" element={<Cart />} />
-        <Route path="/orders" element={<Orders />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/delivery" element={<Delivery />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/logout" element={<Logout />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/delivery-bots" element={<DeliveryBots />} />
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/" element={<Home />} />
+          <Route path="/catalog" element={<Catalog />} />
+          <Route path="/cart" element={<Cart />} />
+          <Route path="/orders" element={<Orders />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/delivery" element={<Delivery />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/logout" element={<Logout />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/delivery-bots" element={<DeliveryBots />} />
 
-        {/* Hidden employee routes - not linked in navbar */}
-        <Route path="/employee/inventory" element={<Inventory />} />
-      </Routes>
-    </BrowserRouter>
+          {/* Hidden employee routes - not linked in navbar */}
+          <Route path="/employee/inventory" element={<Inventory />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 
