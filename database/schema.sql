@@ -1,18 +1,10 @@
-CREATE TABLE Customer (
-    CustomerID      INT AUTO_INCREMENT PRIMARY KEY,
+CREATE TABLE `User` (
+    UserID        INT AUTO_INCREMENT PRIMARY KEY,
 
-    Username        VARCHAR(50)     NOT NULL UNIQUE,
-    PasswordHash    VARCHAR(100)    NOT NULL,
-    Email           VARCHAR(100)    NOT NULL UNIQUE
-);
-
-CREATE TABLE Employee (
-    EmployeeID      INT AUTO_INCREMENT PRIMARY KEY,
-
-    Username        VARCHAR(50)     NOT NULL UNIQUE,
-    PasswordHash    VARCHAR(100)    NOT NULL,
-    Email           VARCHAR(100)    NOT NULL UNIQUE,
-    Position        ENUM('EMPLOYEE', 'MANAGER') NOT NULL DEFAULT 'EMPLOYEE'
+    Username      VARCHAR(50)     NOT NULL UNIQUE,
+    PasswordHash  VARCHAR(100)    NOT NULL,
+    Email         VARCHAR(100)    NOT NULL UNIQUE,
+    Role          ENUM('CUSTOMER', 'EMPLOYEE', 'MANAGER', 'SUPERADMIN') NOT NULL DEFAULT 'CUSTOMER'
 );
 
 CREATE TABLE ProductCategory (
@@ -49,14 +41,14 @@ CREATE TABLE Inventory (
 CREATE TABLE ShoppingOrder (
     ShoppingOrderID     INT AUTO_INCREMENT PRIMARY KEY,
     
-    CustomerID  INT             NOT NULL,
+    UserID      INT             NOT NULL,
     Street      VARCHAR(100)    NOT NULL,
     City        VARCHAR(75)     NOT NULL,
     State       VARCHAR(2)      NOT NULL,
     Zip         VARCHAR(10)     NOT NULL,
     Status      ENUM('INPROGRESS', 'COMPLETED','REFUNDED','VOID') NOT NULL DEFAULT 'INPROGRESS',
 
-    FOREIGN KEY (CustomerID) REFERENCES Customer(CustomerID)
+    FOREIGN KEY (UserID) REFERENCES `User`(UserID)
         ON UPDATE CASCADE
         ON DELETE RESTRICT
 );

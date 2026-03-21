@@ -1,14 +1,12 @@
-INSERT INTO Customer (Username, PasswordHash, Email)
+INSERT INTO `User` (Username, PasswordHash, Email, Role)
 VALUES
-    ('gingertea', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'sneha.basnet@sjsu.edu'),
-    ('kaizansatta', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'kaizan.satta@sjsu.edu'),
-    ('anshhh', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'ansh.dhakalia@sjsu.edu');
-
-INSERT INTO Employee (Username, PasswordHash, Email, Position)
-VALUES
+    ('gingertea', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'sneha.basnet@sjsu.edu', 'CUSTOMER'),
+    ('kaizansatta', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'kaizan.satta@sjsu.edu', 'CUSTOMER'),
+    ('anshhh', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'ansh.dhakalia@sjsu.edu', 'CUSTOMER'),
     ('victoriavo22', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'victoria.vo@sjsu.edu', 'EMPLOYEE'),
     ('therealjohn', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'andy.t.van@sjsu.edu', 'MANAGER'),
-    ('diyaa', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'diya.dalal@sjsu.edu', 'EMPLOYEE');
+    ('diyaa', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'diya.dalal@sjsu.edu', 'EMPLOYEE'),
+    ('ofsadmin', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'admin@ofs.local', 'SUPERADMIN');
 
 INSERT INTO ProductCategory (Name)
 VALUES
@@ -47,7 +45,7 @@ VALUES
     (9, 45, 1),
     (10, 70, 4);
 
-INSERT INTO ShoppingOrder (CustomerID, Street, City, State, Zip, Status)
+INSERT INTO ShoppingOrder (UserID, Street, City, State, Zip, Status)
 VALUES
     (1, '123 Maple St', 'San Jose', 'CA', '95112', 'COMPLETED'),
     (2, '456 Willow Ave', 'San Jose', 'CA', '95126', 'COMPLETED'),
