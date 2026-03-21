@@ -112,3 +112,52 @@ CREATE TABLE TripStop (
         ON UPDATE CASCADE
         ON DELETE CASCADE
 );
+
+CREATE TABLE CustomerAddress (
+    CustomerAddressID     INT AUTO_INCREMENT PRIMARY KEY,
+    UserID                INT NOT NULL,
+    Label                 VARCHAR(50) NOT NULL,
+    StreetLine1           VARCHAR(100) NOT NULL,
+    StreetLine2           VARCHAR(100),
+    City                  VARCHAR(75) NOT NULL,
+    State                 VARCHAR(2) NOT NULL,
+    PostalCode            VARCHAR(10) NOT NULL,
+    DeliveryInstructions  VARCHAR(255),
+    IsDefault             BOOLEAN NOT NULL DEFAULT FALSE,
+    CreatedAt             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (UserID) REFERENCES `User`(UserID)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+);
+
+CREATE TABLE CustomerProfile (
+    UserID                INT PRIMARY KEY,
+    DefaultAddressID      INT,
+    SubstitutionPreference VARCHAR(100),
+    Notes                 TEXT,
+    CreatedAt             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (UserID) REFERENCES `User`(UserID)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    FOREIGN KEY (DefaultAddressID) REFERENCES CustomerAddress(CustomerAddressID)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
+);
+
+CREATE TABLE CustomerPreference (
+    CustomerPreferenceID  INT AUTO_INCREMENT PRIMARY KEY,
+    UserID                INT NOT NULL,
+    PreferenceType        VARCHAR(50) NOT NULL,
+    PreferenceValue       VARCHAR(255) NOT NULL,
+    Source                VARCHAR(50),
+    CreatedAt             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UpdatedAt             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (UserID) REFERENCES `User`(UserID)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+);
