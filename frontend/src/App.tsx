@@ -12,6 +12,8 @@ import Register from "./pages/Register";
 import Delivery from "./pages/Delivery";
 import Inventory from "./pages/Inventory";
 import DeliveryBots from "./pages/DeliveryBots";
+import AdminDashboard from "./pages/AdminDashboard";
+import CustomerProfile from "./pages/CustomerProfile";
 import { AuthProvider } from "./context/AuthContext";
 
 
@@ -31,6 +33,8 @@ function App() {
           <Route path="/logout" element={<Logout />} />
           <Route path="/register" element={<Register />} />
           <Route path="/delivery-bots" element={<DeliveryBots />} />
+          <Route path="/profile" element={<CustomerProfile />} />
+          <Route path="/admin" element={<AdminDashboard />} />
 
           {/* Hidden employee routes - not linked in navbar */}
           <Route path="/employee/inventory" element={<Inventory />} />

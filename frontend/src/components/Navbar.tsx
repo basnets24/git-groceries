@@ -5,6 +5,8 @@ import { useAuth } from "../context/AuthContext";
 const Navbar: React.FC = () => {
   const { user, loading } = useAuth();
 
+  const isStaff = user && user.role !== "CUSTOMER";
+
   return (
     <nav style={styles.navbar}>
       <div style={styles.container}>
@@ -24,9 +26,19 @@ const Navbar: React.FC = () => {
           <Link to="/orders" style={styles.link}>
             Orders
           </Link>
+          {user && (
+            <Link to="/profile" style={styles.link}>
+              Profile
+            </Link>
+          )}
           <Link to="/about" style={styles.link}>
             About
           </Link>
+          {isStaff && (
+            <Link to="/admin" style={styles.link}>
+              Admin
+            </Link>
+          )}
           <div style={styles.authLinks}>
             {user && (
               <Link to="/logout" style={styles.loginLink}>
