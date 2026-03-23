@@ -3,7 +3,7 @@
 # Usage: ./tests/test_endpoints.sh [BASE_URL]
 #   e.g. ./tests/test_endpoints.sh http://localhost:5000
 
-BASE_URL="${1:-http://localhost:5000}"
+BASE_URL="${1:-http://localhost:5001}"
 PASS=0
 FAIL=0
 

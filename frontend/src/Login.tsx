@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
 
 const Login: React.FC = () => {
   const [emailOrUsername, setEmailOrUsername] = useState("");
@@ -8,6 +9,7 @@ const Login: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
 
   const navigate = useNavigate();
+  const { setSession } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,12 +31,11 @@ const Login: React.FC = () => {
       const data = await response.json();
 
       if (response.ok) {
-        localStorage.setItem("token", data.token);
-
-        localStorage.setItem("user", JSON.stringify({
+        setSession(data.token, {
           customerID: data.customerID,
-          username: data.username
-        }));
+          username: data.username,
+          role: data.role
+        });
 
         setSuccess(`Welcome ${data.username}! Redirecting...`);
         setTimeout(() => {

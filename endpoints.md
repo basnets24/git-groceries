@@ -1,6 +1,6 @@
 # OFS API Endpoints
 
-Base URL: `http://localhost:5000`
+Base URL: `http://localhost:5001`
 
 ## Health
 
@@ -207,3 +207,126 @@ Adds a product to the customer's cart. Creates a new INPROGRESS order if one doe
 **Errors:**
 - `400` — Missing product_id or invalid quantity
 - `404` — Customer not found or product not found/inactive
+
+---
+
+## Customer Profiles & Addresses
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/customers/{userId}/profile` | Fetch a customer's profile, addresses, and preferences |
+| POST | `/api/customers/{userId}/profile` | Create or update substitution notes/default address |
+| POST | `/api/customers/{userId}/addresses` | Add a new delivery address |
+| PUT | `/api/customers/{userId}/addresses/{addressId}` | Update an existing address |
+| PUT | `/api/customers/{userId}/default-address` | Set the default delivery address |
+| DELETE | `/api/customers/{userId}/addresses/{addressId}` | Remove a saved address |
+
+### Auth
+All customer profile endpoints require a valid JWT via `Authorization: Bearer <token>`. Users may only access their own `{userId}` resources.
+
+### GET /api/customers/{userId}/profile
+
+Returns the customer's profile plus saved addresses and preferences.
+
+**Response:**
+```json
+{
+  "profile": {
+    "userId": 1,
+    "defaultAddressId": 5,
+    "substitutionPreference": "No substitutions",
+    "notes": "Preferred organic",
+    "createdAt": "2026-03-20T12:00:00Z",
+    "updatedAt": "2026-03-20T12:00:00Z"
+  },
+  "addresses": [
+    {
+      "id": 5,
+      "label": "Home",
+      "streetLine1": "123 Maple St",
+      "city": "San Jose",
+      "state": "CA",
+      "postalCode": "95112",
+      "deliveryInstructions": "Leave at porch",
+      "isDefault": true
+    }
+  ],
+  "preferences": [
+    {
+      "id": 7,
+      "type": "DIET",
+      "value": "VEGAN",
+      "source": "USER"
+    }
+  ]
+}
+```
+
+### POST /api/customers/{userId}/profile
+
+Updates profile fields. All fields optional; omitting a field leaves it unchanged.
+
+**Request Body:**
+```json
+{
+  "substitutionPreference": "Allow close substitutes",
+  "notes": "Allergic to peanuts",
+  "defaultAddressId": 5
+}
+```
+
+**Response (201):**
+```json
+{
+  "profile": {
+    "userId": 1,
+    "defaultAddressId": 5,
+    "substitutionPreference": "Allow close substitutes",
+    "notes": "Allergic to peanuts",
+    "createdAt": "...",
+    "updatedAt": "..."
+  }
+}
+```
+
+### POST /api/customers/{userId}/addresses
+
+Creates a new address. First address or `isDefault=true` makes it the default.
+
+**Request Body:**
+```json
+{
+  "label": "Work",
+  "streetLine1": "456 Willow Ave",
+  "streetLine2": "Suite 5B",
+  "city": "San Jose",
+  "state": "CA",
+  "postalCode": "95126",
+  "deliveryInstructions": "Buzz 203",
+  "isDefault": false
+}
+```
+
+### PUT /api/customers/{userId}/addresses/{addressId}
+
+Updates an existing address (same body shape as POST). Setting `isDefault=true` promotes it to default.
+
+### PUT /api/customers/{userId}/default-address
+
+**Request Body:**
+```json
+{
+  "addressId": 5
+}
+```
+
+Sets the specified address as default.
+
+### DELETE /api/customers/{userId}/addresses/{addressId}
+
+Deletes an address. If the address was default, another address becomes default (if available) or `defaultAddressId` becomes `null`.
+
+**Errors (all endpoints):**
+- `401` — Missing/invalid token
+- `403` — Accessing another user's data
+- `404` — Profile/address not found

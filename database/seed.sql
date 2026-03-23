@@ -1,14 +1,12 @@
-INSERT INTO Customer (Username, PasswordHash, Email)
+INSERT INTO `User` (Username, PasswordHash, Email, Role)
 VALUES
-    ('gingertea', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'sneha.basnet@sjsu.edu'),
-    ('kaizansatta', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'kaizan.satta@sjsu.edu'),
-    ('anshhh', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'ansh.dhakalia@sjsu.edu');
-
-INSERT INTO Employee (Username, PasswordHash, Email, Position)
-VALUES
+    ('gingertea', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'sneha.basnet@sjsu.edu', 'CUSTOMER'),
+    ('kaizansatta', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'kaizan.satta@sjsu.edu', 'CUSTOMER'),
+    ('anshhh', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'ansh.dhakalia@sjsu.edu', 'CUSTOMER'),
     ('victoriavo22', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'victoria.vo@sjsu.edu', 'EMPLOYEE'),
     ('therealjohn', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'andy.t.van@sjsu.edu', 'MANAGER'),
-    ('diyaa', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'diya.dalal@sjsu.edu', 'EMPLOYEE');
+    ('diyaa', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'diya.dalal@sjsu.edu', 'EMPLOYEE'),
+    ('ofsadmin', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'admin@ofs.local', 'SUPERADMIN');
 
 INSERT INTO ProductCategory (Name)
 VALUES
@@ -47,7 +45,7 @@ VALUES
     (9, 45, 1),
     (10, 70, 4);
 
-INSERT INTO ShoppingOrder (CustomerID, Street, City, State, Zip, Status)
+INSERT INTO ShoppingOrder (UserID, Street, City, State, Zip, Status)
 VALUES
     (1, '123 Maple St', 'San Jose', 'CA', '95112', 'COMPLETED'),
     (2, '456 Willow Ave', 'San Jose', 'CA', '95126', 'COMPLETED'),
@@ -87,3 +85,22 @@ VALUES
     (1, 1, 1, '2026-03-08 12:00:00'),
     (1, 2, 2, '2026-03-08 12:20:00'),
     (2, 3, 1, '2026-03-09 10:30:00');
+
+INSERT INTO CustomerAddress (UserID, Label, StreetLine1, StreetLine2, City, State, PostalCode, DeliveryInstructions, IsDefault)
+VALUES
+    (1, 'Home', '123 Maple St', NULL, 'San Jose', 'CA', '95112', 'Leave at front door', TRUE),
+    (2, 'Home', '456 Willow Ave', 'Apt 5B', 'San Jose', 'CA', '95126', 'Buzz #203', TRUE),
+    (3, 'Home', '789 Cedar Dr', NULL, 'Santa Clara', 'CA', '95050', 'Ring doorbell twice', TRUE);
+
+INSERT INTO CustomerProfile (UserID, DefaultAddressID, SubstitutionPreference, Notes)
+VALUES
+    (1, 1, 'No substitutions', 'Prefers organic where possible'),
+    (2, 2, 'Allow close substitutes', NULL),
+    (3, 3, 'Contact me first', 'Allergic to peanuts');
+
+INSERT INTO CustomerPreference (UserID, PreferenceType, PreferenceValue, Source)
+VALUES
+    (1, 'DIET', 'VEGAN', 'USER'),
+    (1, 'CATEGORY', 'ORGANIC', 'USER'),
+    (2, 'BRAND_AVOID', 'BrandX', 'USER'),
+    (3, 'ALLERGEN_AVOID', 'PEANUT', 'USER');

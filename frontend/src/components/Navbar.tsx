@@ -1,34 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
-
+import { useAuth } from "../context/AuthContext";
 
 const Navbar: React.FC = () => {
+  const { user, loading } = useAuth();
 
-  const [user, setUser] = useState<any>(null);
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-
-    if (token) {
-      fetch("/api/auth/me", {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      })
-        .then(res => {
-          if (!res.ok) throw new Error("Not authenticated");
-          return res.json();
-        })
-        .then(data => {
-          setUser(data);
-        })
-        .catch(() => {
-          localStorage.removeItem("token");
-          localStorage.removeItem("user");
-          setUser(null);
-        });
-    }
-  }, []);
+  const isStaff = user && user.role !== "CUSTOMER";
 
   return (
     <nav style={styles.navbar}>
@@ -49,17 +26,37 @@ const Navbar: React.FC = () => {
           <Link to="/orders" style={styles.link}>
             Orders
           </Link>
+          {user && (
+            <Link to="/profile" style={styles.link}>
+              Profile
+            </Link>
+          )}
           <Link to="/about" style={styles.link}>
             About
           </Link>
+          {isStaff && (
+            <Link to="/admin" style={styles.link}>
+              Admin
+            </Link>
+          )}
           <div style={styles.authLinks}>
-            {user ? (
-              <Link to="/logout" style={styles.loginLink}>Logout ({user.username})</Link>
-            ) : (
+            {user && (
+              <Link to="/logout" style={styles.loginLink}>
+                Logout ({user.username})
+              </Link>
+            )}
+            {!user && !loading && (
               <>
-                <Link to="/login" style={styles.loginLink}>Login</Link>
-                <Link to="/register" style={styles.registerLink}>Register</Link>
+                <Link to="/login" style={styles.loginLink}>
+                  Login
+                </Link>
+                <Link to="/register" style={styles.registerLink}>
+                  Register
+                </Link>
               </>
+            )}
+            {!user && loading && (
+              <span style={styles.loadingText}>Checking session...</span>
             )}
           </div>
         </div>
@@ -129,6 +126,10 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: "4px",
     backgroundColor: "#ffffff",
     transition: "all 0.2s ease",
+  },
+  loadingText: {
+    color: "#ffffff",
+    fontSize: "0.9rem",
   },
 };
 
