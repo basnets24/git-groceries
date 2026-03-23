@@ -1,6 +1,8 @@
 from flask import Blueprint, jsonify, request
 
 from exceptions import ValidationError
+from models.user import UserRole
+from modules.auth.decorators import roles_required
 from . import services
 
 products_bp = Blueprint("products", __name__)
@@ -13,6 +15,7 @@ def get_products():
 
 
 @products_bp.route("/api/products", methods=["POST"])
+@roles_required(UserRole.EMPLOYEE, UserRole.MANAGER, UserRole.SUPERADMIN)
 def create_product():
     data = request.get_json()
     required = ["name", "price", "weight", "category_id"]

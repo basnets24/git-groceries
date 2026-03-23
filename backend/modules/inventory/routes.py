@@ -1,6 +1,8 @@
 from flask import Blueprint, jsonify, request
 
 from exceptions import NotFoundError, ValidationError
+from models.user import UserRole
+from modules.auth.decorators import roles_required
 from . import services
 
 inventory_bp = Blueprint("inventory", __name__)
@@ -13,6 +15,7 @@ def get_inventory():
 
 
 @inventory_bp.route("/api/inventory/<int:product_id>", methods=["PUT"])
+@roles_required(UserRole.EMPLOYEE, UserRole.MANAGER, UserRole.SUPERADMIN)
 def update_inventory(product_id: int):
     data = request.get_json()
     if data is None or "quantity" not in data:
