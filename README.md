@@ -17,3 +17,12 @@ Usage guidelines:
 3. Avoid broad `try/except` inside routes unless you need to transform third-party errors; re-raise as `APIError` so the handler controls the HTTP code.
 
 This keeps error formatting and logging consistent and makes it easier to extend responses (e.g., add error codes) in one place.
+
+## Integrations Scaffold
+
+External services live under `backend/integrations/`. Each provider gets its own package with a simple client stub and config dataclass so future work can flesh out real API calls:
+
+- `integrations/google_maps`: placeholder client (`GoogleMapsClient`) plus config for geocoding/ETA requests.
+- `integrations/stripe`: placeholder `StripeClient` for payment intents.
+
+Wire these into modules (checkout, delivery, etc.) once the concrete workflows are defined.
