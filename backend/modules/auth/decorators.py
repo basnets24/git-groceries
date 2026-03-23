@@ -1,7 +1,7 @@
 from functools import wraps
 from typing import Any, Callable, TypeVar, cast
 
-from flask import g, jsonify, request
+from flask import g, request
 
 from exceptions import AuthError
 
@@ -17,13 +17,10 @@ def auth_required(fn: F) -> F:
     def wrapper(*args, **kwargs):
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
-            return jsonify({"error": "Missing token"}), 401
+            raise AuthError("Missing token", 401)
 
         token = auth_header.split(" ", 1)[1]
-        try:
-            payload = services.decode_token(token)
-        except AuthError as exc:
-            return jsonify({"error": str(exc)}), exc.status_code
+        payload = services.decode_token(token)
 
         g.auth_token = token
         g.auth_payload = payload

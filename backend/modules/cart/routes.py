@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 
+from exceptions import ValidationError
 from . import services
 
 cart_bp = Blueprint("cart", __name__)
@@ -15,19 +16,16 @@ def get_cart(customer_id: int):
 def add_to_cart(customer_id: int):
     data = request.get_json()
     if data is None or "product_id" not in data:
-        return jsonify({"error": "Missing 'product_id' in request body"}), 400
+        raise ValidationError("Missing 'product_id' in request body")
 
     quantity = data.get("quantity", 1)
     if not isinstance(quantity, int) or quantity < 1:
-        return jsonify({"error": "Quantity must be a positive integer"}), 400
+        raise ValidationError("Quantity must be a positive integer")
 
-    try:
-        result = services.add_to_cart(
-            customer_id=customer_id,
-            product_id=data["product_id"],
-            quantity=quantity,
-        )
-    except services.CartServiceError as exc:
-        return jsonify({"error": str(exc)}), exc.status_code
+    result = services.add_to_cart(
+        customer_id=customer_id,
+        product_id=data["product_id"],
+        quantity=quantity,
+    )
 
     return jsonify(result), 201

@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 
+from exceptions import NotFoundError, ValidationError
 from . import services
 
 inventory_bp = Blueprint("inventory", __name__)
@@ -15,14 +16,14 @@ def get_inventory():
 def update_inventory(product_id: int):
     data = request.get_json()
     if data is None or "quantity" not in data:
-        return jsonify({"error": "Missing 'quantity' in request body"}), 400
+        raise ValidationError("Missing 'quantity' in request body")
 
     quantity = data["quantity"]
     if not isinstance(quantity, int) or quantity < 0:
-        return jsonify({"error": "Quantity must be a non-negative integer"}), 400
+        raise ValidationError("Quantity must be a non-negative integer")
 
     updated_item = services.update_inventory(product_id, quantity)
     if updated_item is None:
-        return jsonify({"error": "Product not found in inventory"}), 404
+        raise NotFoundError("Product not found in inventory")
 
     return jsonify({"item": updated_item})

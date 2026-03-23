@@ -1,13 +1,9 @@
 from flask import Blueprint, jsonify, request
 
-from exceptions import AuthError
+from exceptions import AuthError, ValidationError
 from . import services
 
 auth_bp = Blueprint("auth", __name__)
-
-
-def _error_response(message: str, status: int):
-    return jsonify({"error": message}), status
 
 
 @auth_bp.route("/api/auth/login", methods=["POST"])
@@ -17,12 +13,9 @@ def login():
     password = data.get("password")
 
     if not identifier or not password:
-        return _error_response("emailOrUsername and password are required", 400)
+        raise ValidationError("emailOrUsername and password are required")
 
-    try:
-        token, user = services.authenticate_user(identifier, password)
-    except AuthError as exc:
-        return _error_response(str(exc), exc.status_code)
+    token, user = services.authenticate_user(identifier, password)
 
     return jsonify(
         {
@@ -44,12 +37,9 @@ def register():
 
     missing = [field for field in ("username", "email", "password") if not data.get(field)]
     if missing:
-        return _error_response(f"Missing fields: {', '.join(missing)}", 400)
+        raise ValidationError(f"Missing fields: {', '.join(missing)}")
 
-    try:
-        services.register_user(username, email, password)
-    except AuthError as exc:
-        return _error_response(str(exc), exc.status_code)
+    services.register_user(username, email, password)
 
     return jsonify({"message": "User created successfully"}), 201
 
@@ -58,12 +48,9 @@ def register():
 def get_current_user():
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
-        return _error_response("Missing token", 401)
+        raise AuthError("Missing token", 401)
 
     token = auth_header.split(" ", 1)[1]
-    try:
-        profile = services.get_user_profile_from_token(token)
-    except AuthError as exc:
-        return _error_response(str(exc), exc.status_code)
+    profile = services.get_user_profile_from_token(token)
 
     return jsonify(profile)

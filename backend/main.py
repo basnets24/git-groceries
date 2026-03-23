@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_cors import CORS
 
+from exceptions import register_error_handlers
 from modules.auth.routes import auth_bp
 from modules.cart.routes import cart_bp
 from modules.customer.routes import customer_bp
@@ -9,6 +10,7 @@ from modules.products.routes import products_bp
 
 app = Flask(__name__)
 CORS(app)
+register_error_handlers(app)
 
 @app.route("/api/health")
 def health():
