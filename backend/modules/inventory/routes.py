@@ -2,13 +2,14 @@ from flask import Blueprint, jsonify, request
 
 from exceptions import NotFoundError, ValidationError
 from models.user import UserRole
-from modules.auth.decorators import roles_required
+from modules.auth.decorators import auth_required, roles_required
 from . import services
 
 inventory_bp = Blueprint("inventory", __name__)
 
 
 @inventory_bp.route("/api/inventory")
+@auth_required
 def get_inventory():
     inventory = services.get_inventory()
     return jsonify({"inventory": inventory})

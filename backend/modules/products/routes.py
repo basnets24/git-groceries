@@ -2,13 +2,14 @@ from flask import Blueprint, jsonify, request
 
 from exceptions import ValidationError
 from models.user import UserRole
-from modules.auth.decorators import roles_required
+from modules.auth.decorators import auth_required, roles_required
 from . import services
 
 products_bp = Blueprint("products", __name__)
 
 
 @products_bp.route("/api/products")
+@auth_required
 def get_products():
     products = services.get_products()
     return jsonify({"products": products})
