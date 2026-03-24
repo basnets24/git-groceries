@@ -1,13 +1,13 @@
 import datetime
 import os
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple, Set
 
 import bcrypt
 import jwt
 import mysql.connector
 from dotenv import load_dotenv
 
-from exceptions import AuthError
+from exceptions import AuthError, NotFoundError, ValidationError
 from models.user import User, UserRole
 
 from . import repository
@@ -99,3 +99,48 @@ def get_user_profile_from_token(token: str) -> dict:
 def get_user_by_id(user_id: int) -> Optional[User]:
     """Helper for callers that just need the User record."""
     return repository.fetch_user_by_id(user_id)
+
+
+def _allowed_assignment_roles(assigner_role: UserRole) -> Set[UserRole]:
+    """Return which roles the assigner is allowed to grant."""
+    if assigner_role == UserRole.SUPERADMIN:
+        return {UserRole.MANAGER, UserRole.EMPLOYEE}
+    if assigner_role == UserRole.MANAGER:
+        return {UserRole.EMPLOYEE}
+    return set()
+
+
+def assign_user_role(assigner_id: int, target_user_id: int, new_role: UserRole) -> User:
+    """Update another user's role following role-based constraints."""
+    assigner = repository.fetch_user_by_id(assigner_id)
+    if not assigner:
+        raise AuthError("Authenticated user no longer exists", 401)
+
+    target = repository.fetch_user_by_id(target_user_id)
+    if not target:
+        raise NotFoundError("User not found")
+
+    allowed_roles = _allowed_assignment_roles(assigner.role)
+    if new_role not in allowed_roles:
+        raise AuthError("Forbidden", 403)
+
+    # Managers cannot change roles for other managers or superadmins.
+    if assigner.role == UserRole.MANAGER and target.role in {
+        UserRole.MANAGER,
+        UserRole.SUPERADMIN,
+    }:
+        raise AuthError("Forbidden", 403)
+
+    if target.role != new_role:
+        repository.update_user_role(target_user_id, new_role)
+        target.role = new_role
+
+    return target
+
+
+def search_users_by_email(email_query: str) -> List[User]:
+    """Return users whose email contains the provided query."""
+    trimmed = email_query.strip()
+    if len(trimmed) < 2:
+        raise ValidationError("Query must be at least 2 characters long")
+    return repository.search_users_by_email(trimmed)

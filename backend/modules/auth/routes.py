@@ -1,6 +1,8 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 
 from exceptions import AuthError, ValidationError
+from models.user import UserRole
+from .decorators import roles_required
 from . import services
 
 auth_bp = Blueprint("auth", __name__)
@@ -54,3 +56,56 @@ def get_current_user():
     profile = services.get_user_profile_from_token(token)
 
     return jsonify(profile)
+
+
+@auth_bp.route("/api/auth/users/<int:user_id>/role", methods=["PUT"])
+@roles_required(UserRole.MANAGER, UserRole.SUPERADMIN)
+def assign_role(user_id: int):
+    data = request.get_json(silent=True) or {}
+    raw_role = data.get("role")
+
+    if not raw_role:
+        raise ValidationError("Field 'role' is required")
+
+    try:
+        requested_role = UserRole(str(raw_role).upper())
+    except ValueError as exc:
+        raise ValidationError("Invalid role value") from exc
+
+    if requested_role not in {UserRole.MANAGER, UserRole.EMPLOYEE}:
+        raise ValidationError("Role must be MANAGER or EMPLOYEE")
+
+    payload = getattr(g, "auth_payload", None)
+    if not payload:
+        raise AuthError("Missing token", 401)
+
+    assigner_id = payload.get("customerID")
+    if not assigner_id:
+        raise AuthError("Missing token", 401)
+
+    updated_user = services.assign_user_role(assigner_id, user_id, requested_role)
+
+    return jsonify(
+        {
+            "message": "Role updated successfully",
+            "userID": updated_user.id,
+            "role": updated_user.role.value,
+        }
+    )
+
+
+@auth_bp.route("/api/auth/users", methods=["GET"])
+@roles_required(UserRole.MANAGER, UserRole.SUPERADMIN)
+def search_users():
+    email_query = request.args.get("email", "")
+    results = services.search_users_by_email(email_query)
+    serialized = [
+        {
+            "userID": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role.value,
+        }
+        for user in results
+    ]
+    return jsonify({"results": serialized})
