@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import React, { useCallback, useEffect, useState } from "react";
+import { Link, Navigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import { useAuth } from "../context/AuthContext";
 
 interface CartItem {
   order_id: number;
@@ -13,16 +14,34 @@ interface CartItem {
   price_at_checkout: number;
 }
 
-const CUSTOMER_ID = 1;
-
 const Cart: React.FC = () => {
+  const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCart = async () => {
+  const customerId = user?.customerID;
+
+  const fetchCart = useCallback(async () => {
+    if (!customerId) {
+      setError("You need to be signed in to view your cart.");
+      setLoading(false);
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setError("Session expired. Please log in again.");
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await fetch(`/api/cart/${CUSTOMER_ID}`);
+      const response = await fetch(`/api/cart/${customerId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (!response.ok) {
         throw new Error("Failed to fetch cart");
       }
@@ -33,16 +52,22 @@ const Cart: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [customerId]);
 
   useEffect(() => {
-    fetchCart();
-  }, []);
+    if (!authLoading) {
+      fetchCart();
+    }
+  }, [authLoading, fetchCart]);
 
   const total = items.reduce(
     (sum, item) => sum + item.price_at_checkout * item.quantity,
     0
   );
+
+  if (!authLoading && !user) {
+    return <Navigate to="/login" replace />;
+  }
 
   return (
     <div style={styles.pageContainer}>

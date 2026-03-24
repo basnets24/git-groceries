@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import { Navigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 interface Product {
   id: number;
@@ -13,6 +15,7 @@ interface Product {
 }
 
 const Catalog: React.FC = () => {
+  const { user, loading: authLoading } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,30 +37,41 @@ const Catalog: React.FC = () => {
     return sortOrder === "asc" ? comparison : -comparison;
   });
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const response = await fetch("/api/products");
-        if (!response.ok) {
-          throw new Error("Failed to fetch products");
-        }
-        const data = await response.json();
-        setProducts(data.products);
-        // Initialize quantities to 1 for each product
-        const initialQuantities: { [key: number]: number } = {};
-        data.products.forEach((product: Product) => {
-          initialQuantities[product.id] = 1;
-        });
-        setQuantities(initialQuantities);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "An error occurred");
-      } finally {
-        setLoading(false);
+  const fetchProducts = useCallback(async () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setError("Please log in to browse products.");
+      setLoading(false);
+      return;
+    }
+    try {
+      const response = await fetch("/api/products", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error("Failed to fetch products");
       }
-    };
-
-    fetchProducts();
+      const data = await response.json();
+      setProducts(data.products);
+      const initialQuantities: { [key: number]: number } = {};
+      data.products.forEach((product: Product) => {
+        initialQuantities[product.id] = 1;
+      });
+      setQuantities(initialQuantities);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!authLoading) {
+      fetchProducts();
+    }
+  }, [authLoading, fetchProducts]);
 
   const handleQuantityChange = (productId: number, delta: number) => {
     setQuantities((prev) => ({
@@ -67,11 +81,23 @@ const Catalog: React.FC = () => {
   };
 
   const handleAddToCart = async (product: Product) => {
+    if (!user) {
+      alert("Please log in to add items to your cart.");
+      return;
+    }
+    const token = localStorage.getItem("token");
+    if (!token) {
+      alert("Session expired. Please log in again.");
+      return;
+    }
     const quantity = quantities[product.id] || 1;
     try {
-      const response = await fetch("/api/cart/1", {
+      const response = await fetch(`/api/cart/${user.customerID}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ product_id: product.id, quantity }),
       });
       if (!response.ok) {
@@ -84,6 +110,10 @@ const Catalog: React.FC = () => {
       alert(err instanceof Error ? err.message : "Failed to add to cart");
     }
   };
+
+  if (!authLoading && !user) {
+    return <Navigate to="/login" replace />;
+  }
 
   return (
     <div style={styles.pageContainer}>
