@@ -14,7 +14,8 @@ def fetch_active_cart_items(customer_id: int) -> List[Dict]:
                p.Price AS price,
                pc.Name AS category,
                soi.Quantity AS quantity,
-               soi.PriceAtCheckout AS price_at_checkout
+               soi.PriceAtCheckout AS price_at_checkout,
+               soi.WeightAtCheckout AS weight_at_checkout
         FROM ShoppingOrder so
         JOIN ShoppingOrderItem soi ON so.ShoppingOrderID = soi.ShoppingOrderID
         JOIN Product p ON soi.ProductID = p.ProductID

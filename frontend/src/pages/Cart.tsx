@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
@@ -12,10 +12,12 @@ interface CartItem {
   category: string;
   quantity: number;
   price_at_checkout: number;
+  weight_at_checkout: number;
 }
 
 const Cart: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,10 +62,18 @@ const Cart: React.FC = () => {
     }
   }, [authLoading, fetchCart]);
 
-  const total = items.reduce(
+  const subtotal = items.reduce(
     (sum, item) => sum + item.price_at_checkout * item.quantity,
     0
   );
+
+  const totalWeight = items.reduce(
+    (sum, item) => sum + item.weight_at_checkout * item.quantity,
+    0
+  );
+
+  const deliveryCharge = totalWeight >= 20 ? 10 : 0;
+  const total = subtotal + deliveryCharge;
 
   if (!authLoading && !user) {
     return <Navigate to="/login" replace />;
@@ -146,12 +156,33 @@ const Cart: React.FC = () => {
                   <span style={styles.totalLabel}>
                     Items ({items.reduce((s, i) => s + i.quantity, 0)})
                   </span>
-                  <span style={styles.totalValue}>${total.toFixed(2)}</span>
+                  <span style={styles.totalValue}>${subtotal.toFixed(2)}</span>
                 </div>
                 <div style={styles.totalRow}>
+                  <span style={styles.totalLabel}>
+                    Delivery ({totalWeight.toFixed(1)} lbs)
+                  </span>
+                  <span style={styles.totalValue}>
+                    {deliveryCharge === 0 ? "FREE" : `$${deliveryCharge.toFixed(2)}`}
+                  </span>
+                </div>
+                <div style={styles.deliveryInfo}>
+                  {deliveryCharge === 0 ? (
+                    <p>✓ FREE delivery — your order is under 20 lbs!</p>
+                  ) : (
+                    <p>Delivery charge applied for orders 20 lbs or more</p>
+                  )}
+                </div>
+                <div style={styles.totalRowBold}>
                   <span style={styles.totalLabelBold}>Total</span>
                   <span style={styles.totalValueBold}>${total.toFixed(2)}</span>
                 </div>
+                <button
+                  onClick={() => navigate("/checkout")}
+                  style={styles.checkoutButton}
+                >
+                  Proceed to Checkout
+                </button>
               </div>
 
               <div style={styles.deliverySection}>
@@ -315,6 +346,32 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "1.2rem",
     fontWeight: 700,
     color: "#2d6a4f",
+  },
+  totalRowBold: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginTop: "1rem",
+    paddingTop: "1rem",
+    borderTop: "2px solid #2d6a4f",
+  },
+  deliveryInfo: {
+    marginTop: "0.75rem",
+    fontSize: "0.9rem",
+    color: "#2d6a4f",
+    fontWeight: 500,
+  },
+  checkoutButton: {
+    marginTop: "1.5rem",
+    width: "100%",
+    backgroundColor: "#2d6a4f",
+    color: "#ffffff",
+    padding: "1rem",
+    border: "none",
+    borderRadius: "6px",
+    fontSize: "1.1rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "background-color 0.2s",
   },
   deliverySection: {
     marginTop: "1.5rem",

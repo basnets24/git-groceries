@@ -1,9 +1,11 @@
-"""Minimal Stripe client placeholder."""
+"""Stripe integration helpers."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Dict, Optional
+
+import stripe
 
 
 @dataclass
@@ -13,19 +15,30 @@ class StripeConfig:
 
 
 class StripeClient:
-    """Placeholder Stripe integration used until real SDK wiring is added."""
-
     def __init__(self, config: StripeConfig) -> None:
         self.config = config
+        stripe.api_key = config.api_key
+        stripe.api_version = config.api_version
 
     def create_payment_intent(self, amount_cents: int, currency: str = "usd") -> Dict:
-        """Stub payment intent creation."""
+        intent = stripe.PaymentIntent.create(
+            amount=amount_cents,
+            currency=currency,
+            payment_method_types=["card"],
+        )
         return {
-            "id": "pi_NOT_IMPLEMENTED",
-            "amount": amount_cents,
-            "currency": currency,
-            "status": "NOT_IMPLEMENTED",
+            "id": intent.id,
+            "client_secret": intent.client_secret,
+            "amount": intent.amount,
+            "currency": intent.currency,
+            "status": intent.status,
         }
 
     def retrieve_payment_intent(self, intent_id: str) -> Optional[Dict]:
-        return None
+        intent = stripe.PaymentIntent.retrieve(intent_id)
+        return {
+            "id": intent.id,
+            "amount": intent.amount,
+            "currency": intent.currency,
+            "status": intent.status,
+        }

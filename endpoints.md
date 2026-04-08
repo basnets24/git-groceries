@@ -31,3 +31,12 @@ Base URL: `http://localhost:5001`
 - `PUT /api/customers/{userId}/addresses/{addressId}` — Edit an existing delivery address.
 - `PUT /api/customers/{userId}/default-address` — Promote an address to default.
 - `DELETE /api/customers/{userId}/addresses/{addressId}` — Remove a delivery address.
+
+## Checkout
+- `POST /api/checkout` — Initialize checkout session for the active cart.
+  - Returns order summary with subtotal, total weight, delivery charge (free if < 20 lbs, $10 if ≥ 20 lbs), and Stripe payment intent details.
+
+## Payments (Stripe)
+- `POST /api/payments` — Create a Stripe payment intent for checkout.
+  - Returns Stripe `PaymentIntent` with `client_secret` for client-side confirmation.
+  - Payment records are persisted in the database with `PENDING` status.

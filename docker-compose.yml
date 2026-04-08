@@ -31,6 +31,7 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       JWT_SECRET: ${JWT_SECRET}
+      STRIPE_API_KEY: ${STRIPE_API_KEY}
 
   frontend:
     build: ./frontend

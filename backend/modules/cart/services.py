@@ -14,6 +14,7 @@ def get_cart(customer_id: int) -> List[Dict]:
     for item in items:
         item["price"] = float(item["price"])
         item["price_at_checkout"] = float(item["price_at_checkout"])
+        item["weight_at_checkout"] = float(item.get("weight_at_checkout", 0))
     return items
 
 
