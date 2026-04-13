@@ -39,8 +39,9 @@ interface CheckoutResponse {
 
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY!);
 
-const CheckoutForm: React.FC<{ clientSecret: string; onSuccess: () => void }> = ({
+const CheckoutForm: React.FC<{ clientSecret: string; orderId: number; onSuccess: () => void }> = ({
     clientSecret,
+    orderId,
     onSuccess,
 }) => {
     const stripe = useStripe();
@@ -73,6 +74,20 @@ const CheckoutForm: React.FC<{ clientSecret: string; onSuccess: () => void }> = 
             setError(confirmError.message || "Payment failed");
             setProcessing(false);
         } else {
+            // Complete the order after successful payment
+            try {
+                const token = localStorage.getItem("token");
+                await fetch(`/api/orders/${orderId}/complete`, {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                    },
+                });
+            } catch (completeError) {
+                console.error("Failed to complete order:", completeError);
+                // Continue with success flow even if completion fails
+            }
             onSuccess();
         }
     };
@@ -295,6 +310,7 @@ const Checkout: React.FC = () => {
                                 <Elements stripe={stripePromise}>
                                     <CheckoutForm
                                         clientSecret={checkout.payment_intent.client_secret}
+                                        orderId={checkout.order_id}
                                         onSuccess={() => setPaymentSuccess(true)}
                                     />
                                 </Elements>

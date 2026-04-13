@@ -35,8 +35,13 @@ Base URL: `http://localhost:5001`
 ## Checkout
 - `POST /api/checkout` — Initialize checkout session for the active cart.
   - Returns order summary with subtotal, total weight, delivery charge (free if < 20 lbs, $10 if ≥ 20 lbs), and Stripe payment intent details.
+- `POST /api/orders/{orderId}/complete` — Mark an order as completed after successful payment.
 
 ## Payments (Stripe)
 - `POST /api/payments` — Create a Stripe payment intent for checkout.
   - Returns Stripe `PaymentIntent` with `client_secret` for client-side confirmation.
   - Payment records are persisted in the database with `PENDING` status.
+
+## Orders
+- `GET /api/orders` — Fetch all completed orders for the authenticated customer.
+  - Returns order history with items, addresses, payment status, and dates.

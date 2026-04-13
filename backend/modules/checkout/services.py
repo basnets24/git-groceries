@@ -1,6 +1,7 @@
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, List
 
+from db import get_db_connection
 from exceptions import NotFoundError, ValidationError
 from modules.cart import services as cart_services
 from modules.cart.repository import fetch_inprogress_order
@@ -58,3 +59,20 @@ def create_checkout_session(customer_id: int) -> Dict:
         "checkout": summary,
         "payment_intent": payment_intent,
     }
+
+
+def complete_order(order_id: int) -> None:
+    """Mark an order as completed after successful payment."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        UPDATE ShoppingOrder
+        SET Status = 'COMPLETED'
+        WHERE ShoppingOrderID = %s AND Status = 'INPROGRESS'
+        """,
+        (order_id,),
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()

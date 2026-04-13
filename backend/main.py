@@ -8,6 +8,7 @@ from modules.checkout import checkout_bp
 from modules.customer.routes import customer_bp
 from modules.inventory.routes import inventory_bp
 from modules.delivery import delivery_bp
+from modules.orders.routes import orders_bp
 from modules.payment import payment_bp
 from modules.products.routes import products_bp
 
@@ -27,6 +28,7 @@ app.register_blueprint(cart_bp)
 app.register_blueprint(checkout_bp)
 app.register_blueprint(payment_bp)
 app.register_blueprint(delivery_bp)
+app.register_blueprint(orders_bp)
 
 
 if __name__ == "__main__":
