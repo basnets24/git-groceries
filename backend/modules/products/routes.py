@@ -8,10 +8,22 @@ from . import services
 products_bp = Blueprint("products", __name__)
 
 
+@products_bp.route("/api/categories")
+@auth_required
+def get_categories():
+    categories = services.get_all_categories()
+    return jsonify({"categories": categories})
+
+
 @products_bp.route("/api/products")
 @auth_required
 def get_products():
-    products = services.get_products()
+    category_ids = request.args.getlist("category_id", type=int)
+    
+    if not category_ids:
+        category_ids = None
+    
+    products = services.get_products(category_ids)
     return jsonify({"products": products})
 
 

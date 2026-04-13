@@ -3,11 +3,30 @@ from typing import Dict, List, Optional
 from db import get_db_connection
 
 
-def fetch_active_products() -> List[Dict]:
+def fetch_all_categories() -> List[Dict]:
+    """Fetch all product categories."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
         """
+        SELECT ProductCategoryID AS id, Name AS name
+        FROM ProductCategory
+        ORDER BY Name
+        """
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def fetch_active_products(category_ids: Optional[List[int]] = None) -> List[Dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    if category_ids and len(category_ids) > 0:
+        placeholders = ",".join(["%s"] * len(category_ids))
+        query = f"""
         SELECT p.ProductID    AS id,
                p.Name         AS name,
                p.Price        AS price,
@@ -16,10 +35,26 @@ def fetch_active_products() -> List[Dict]:
                p.IsActive     AS active
         FROM Product p
         JOIN ProductCategory pc ON p.ProductCategoryID = pc.ProductCategoryID
-        WHERE p.IsActive = TRUE
+        WHERE p.IsActive = TRUE AND p.ProductCategoryID IN ({placeholders})
         ORDER BY p.ProductID
         """
-    )
+        cursor.execute(query, category_ids)
+    else:
+        cursor.execute(
+            """
+            SELECT p.ProductID    AS id,
+                   p.Name         AS name,
+                   p.Price        AS price,
+                   p.WeightLbs    AS weight,
+                   pc.Name        AS category,
+                   p.IsActive     AS active
+            FROM Product p
+            JOIN ProductCategory pc ON p.ProductCategoryID = pc.ProductCategoryID
+            WHERE p.IsActive = TRUE
+            ORDER BY p.ProductID
+            """
+        )
+    
     rows = cursor.fetchall()
     cursor.close()
     conn.close()

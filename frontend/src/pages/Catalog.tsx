@@ -14,16 +14,32 @@ interface Product {
   weight: number;
 }
 
+interface Category {
+  id: number;
+  name: string;
+}
+
 const Catalog: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [quantities, setQuantities] = useState<{ [key: number]: number }>({});
   const [sortField, setSortField] = useState<"price" | "name" | "weight">("price");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
-  const sortedProducts = [...products].sort((a, b) => {
+  const filteredProducts = selectedCategories.length > 0
+    ? products.filter((p) =>
+      selectedCategories.some(
+        (catId) =>
+          categories.find((c) => c.id === catId)?.name === p.category
+      )
+    )
+    : products;
+
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
     let comparison = 0;
 
     if (sortField === "price") {
@@ -37,6 +53,27 @@ const Catalog: React.FC = () => {
     return sortOrder === "asc" ? comparison : -comparison;
   });
 
+  const fetchCategories = useCallback(async () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      return;
+    }
+    try {
+      const response = await fetch("/api/categories", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error("Failed to fetch categories");
+      }
+      const data = await response.json();
+      setCategories(data.categories);
+    } catch (err) {
+      console.error("Error fetching categories:", err);
+    }
+  }, []);
+
   const fetchProducts = useCallback(async () => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -45,7 +82,15 @@ const Catalog: React.FC = () => {
       return;
     }
     try {
-      const response = await fetch("/api/products", {
+      let url = "/api/products";
+      if (selectedCategories.length > 0) {
+        const params = selectedCategories
+          .map((id) => `category_id=${id}`)
+          .join("&");
+        url += `?${params}`;
+      }
+
+      const response = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -65,13 +110,22 @@ const Catalog: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedCategories]);
 
   useEffect(() => {
     if (!authLoading) {
+      fetchCategories();
       fetchProducts();
     }
-  }, [authLoading, fetchProducts]);
+  }, [authLoading, fetchCategories, fetchProducts]);
+
+  const handleCategoryToggle = (categoryId: number) => {
+    setSelectedCategories((prev) =>
+      prev.includes(categoryId)
+        ? prev.filter((id) => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  };
 
   const handleQuantityChange = (productId: number, delta: number) => {
     setQuantities((prev) => ({
@@ -145,80 +199,112 @@ const Catalog: React.FC = () => {
             </div>
           )}
 
-          <select
-            value={sortField}
-            onChange={(e) => setSortField(e.target.value as any)}
-          >
-            <option value="price">Price</option>
-            <option value="name">Name</option>
-            <option value="weight">Weight</option>
-          </select>
-          <button
-            onClick={() =>
-              setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
-            }
-          >
-            {sortOrder === "asc" ? "Ascending ↑" : "Descending ↓"}
-          </button>
-
           {!loading && !error && (
-            <div style={styles.productsGrid}>
-              {sortedProducts.map((product) => (
-                <div key={product.id} style={styles.productCard}>
-                  <div style={styles.imageContainer}>
-                    {product.image ? (
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        style={styles.productImage}
-                      />
-                    ) : (
-                      <div style={styles.placeholderImage}>
-                        <span style={styles.placeholderText}>No Image</span>
-                      </div>
-                    )}
-                  </div>
-                  <div style={styles.productInfo}>
-                    <span style={styles.categoryBadge}>{product.category}</span>
-                    <h3 style={styles.productName}>{product.name}</h3>
-                    <p style={styles.productDescription}>{product.description}</p>
-                    <p style={styles.productWeight}>{product.weight.toFixed(2)} lbs</p>
-                    <p style={styles.productPrice}>${product.price.toFixed(2)}</p>
-
-                    <div style={styles.quantityContainer}>
+            <>
+              <div style={styles.filtersSection}>
+                <div style={styles.filterGroup}>
+                  <label style={styles.filterLabel}>Filter by Category:</label>
+                  <div style={styles.categoryButtonsContainer}>
+                    {categories.map((category) => (
                       <button
-                        onClick={() => handleQuantityChange(product.id, -1)}
-                        style={styles.quantityButton}
+                        key={category.id}
+                        onClick={() => handleCategoryToggle(category.id)}
+                        style={{
+                          ...styles.categoryButton,
+                          ...(selectedCategories.includes(category.id)
+                            ? styles.categoryButtonActive
+                            : styles.categoryButtonInactive),
+                        }}
                       >
-                        -
+                        {category.name}
                       </button>
-                      <span style={styles.quantityValue}>
-                        {quantities[product.id] || 1}
-                      </span>
-                      <button
-                        onClick={() => handleQuantityChange(product.id, 1)}
-                        style={styles.quantityButton}
-                      >
-                        +
-                      </button>
-                    </div>
-
-                    <button
-                      onClick={() => handleAddToCart(product)}
-                      style={styles.addToCartButton}
-                    >
-                      Add to Cart
-                    </button>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
 
-          {!loading && !error && products.length === 0 && (
-            <div style={styles.emptyContainer}>
-              <p style={styles.emptyText}>No products available at the moment.</p>
-            </div>
+              <div style={styles.sortSection}>
+                <select
+                  value={sortField}
+                  onChange={(e) => setSortField(e.target.value as any)}
+                  style={styles.sortSelect}
+                >
+                  <option value="price">Sort by Price</option>
+                  <option value="name">Sort by Name</option>
+                  <option value="weight">Sort by Weight</option>
+                </select>
+                <button
+                  onClick={() =>
+                    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
+                  }
+                  style={styles.sortButton}
+                >
+                  {sortOrder === "asc" ? "Ascending ↑" : "Descending ↓"}
+                </button>
+              </div>
+
+              <div style={styles.productsGrid}>
+                {sortedProducts.map((product) => (
+                  <div key={product.id} style={styles.productCard}>
+                    <div style={styles.imageContainer}>
+                      {product.image ? (
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          style={styles.productImage}
+                        />
+                      ) : (
+                        <div style={styles.placeholderImage}>
+                          <span style={styles.placeholderText}>No Image</span>
+                        </div>
+                      )}
+                    </div>
+                    <div style={styles.productInfo}>
+                      <span style={styles.categoryBadge}>{product.category}</span>
+                      <h3 style={styles.productName}>{product.name}</h3>
+                      <p style={styles.productDescription}>{product.description}</p>
+                      <p style={styles.productWeight}>{product.weight.toFixed(2)} lbs</p>
+                      <p style={styles.productPrice}>${product.price.toFixed(2)}</p>
+
+                      <div style={styles.quantityContainer}>
+                        <button
+                          onClick={() => handleQuantityChange(product.id, -1)}
+                          style={styles.quantityButton}
+                        >
+                          -
+                        </button>
+                        <span style={styles.quantityValue}>
+                          {quantities[product.id] || 1}
+                        </span>
+                        <button
+                          onClick={() => handleQuantityChange(product.id, 1)}
+                          style={styles.quantityButton}
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => handleAddToCart(product)}
+                        style={styles.addToCartButton}
+                      >
+                        Add to Cart
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {sortedProducts.length === 0 && (
+                <div style={styles.emptyContainer}>
+                  <p style={styles.emptyText}>
+                    {selectedCategories.length > 0
+                      ? "No products available in the selected categories."
+                      : "No products available at the moment."}
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>
@@ -293,6 +379,71 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: "4px",
     fontSize: "1rem",
     cursor: "pointer",
+  },
+  filtersSection: {
+    marginBottom: "2rem",
+    padding: "1.5rem",
+    backgroundColor: "#ffffff",
+    borderRadius: "8px",
+    boxShadow: "0 1px 4px rgba(0, 0, 0, 0.08)",
+  },
+  filterGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1rem",
+  },
+  filterLabel: {
+    fontSize: "1rem",
+    fontWeight: 600,
+    color: "#1b4332",
+  },
+  categoryButtonsContainer: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "0.75rem",
+  },
+  categoryButton: {
+    padding: "0.6rem 1.2rem",
+    border: "2px solid #2d6a4f",
+    borderRadius: "20px",
+    fontSize: "0.95rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+  },
+  categoryButtonActive: {
+    backgroundColor: "#2d6a4f",
+    color: "#ffffff",
+  },
+  categoryButtonInactive: {
+    backgroundColor: "#ffffff",
+    color: "#2d6a4f",
+  },
+  sortSection: {
+    marginBottom: "2rem",
+    display: "flex",
+    gap: "1rem",
+    flexWrap: "wrap",
+  },
+  sortSelect: {
+    padding: "0.75rem 1rem",
+    border: "1px solid #dee2e6",
+    borderRadius: "4px",
+    fontSize: "1rem",
+    cursor: "pointer",
+    backgroundColor: "#ffffff",
+    color: "#1b4332",
+  },
+  sortButton: {
+    padding: "0.75rem 1.5rem",
+    backgroundColor: "#2d6a4f",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: "4px",
+    fontSize: "1rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "background-color 0.2s ease",
   },
   productsGrid: {
     display: "grid",
