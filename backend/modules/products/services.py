@@ -8,11 +8,18 @@ def get_all_categories() -> List[Dict]:
     return categories
 
 
-def get_products(category_ids: Optional[List[int]] = None) -> List[Dict]:
-    products = repository.fetch_active_products(category_ids)
+def get_products(
+    category_ids: Optional[List[int]] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    min_weight: Optional[float] = None,
+    max_weight: Optional[float] = None,
+) -> List[Dict]:
+    products = repository.fetch_active_products(category_ids, min_price, max_price, min_weight, max_weight)
     for product in products:
         product["price"] = float(product["price"])
         product["weight"] = float(product["weight"])
+        product["quantityInStock"] = int(product["quantityInStock"])
         product["image"] = ""
         product["description"] = ""
     return products

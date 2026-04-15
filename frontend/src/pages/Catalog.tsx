@@ -12,6 +12,7 @@ interface Product {
   image: string;
   description: string;
   weight: number;
+  quantityInStock: number;
 }
 
 interface Category {
@@ -24,11 +25,16 @@ const Catalog: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
+  const [minPrice, setMinPrice] = useState<string>("");
+  const [maxPrice, setMaxPrice] = useState<string>("");
+  const [minWeight, setMinWeight] = useState<string>("");
+  const [maxWeight, setMaxWeight] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [quantities, setQuantities] = useState<{ [key: number]: number }>({});
   const [sortField, setSortField] = useState<"price" | "name" | "weight">("price");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   const filteredProducts = selectedCategories.length > 0
     ? products.filter((p) =>
@@ -83,11 +89,32 @@ const Catalog: React.FC = () => {
     }
     try {
       let url = "/api/products";
+      const params = [];
+
       if (selectedCategories.length > 0) {
-        const params = selectedCategories
-          .map((id) => `category_id=${id}`)
-          .join("&");
-        url += `?${params}`;
+        selectedCategories.forEach((id) => {
+          params.push(`category_id=${id}`);
+        });
+      }
+
+      if (minPrice.trim() !== "") {
+        params.push(`min_price=${minPrice}`);
+      }
+
+      if (maxPrice.trim() !== "") {
+        params.push(`max_price=${maxPrice}`);
+      }
+
+      if (minWeight.trim() !== "") {
+        params.push(`min_weight=${minWeight}`);
+      }
+
+      if (maxWeight.trim() !== "") {
+        params.push(`max_weight=${maxWeight}`);
+      }
+
+      if (params.length > 0) {
+        url += `?${params.join("&")}`;
       }
 
       const response = await fetch(url, {
@@ -102,7 +129,7 @@ const Catalog: React.FC = () => {
       setProducts(data.products);
       const initialQuantities: { [key: number]: number } = {};
       data.products.forEach((product: Product) => {
-        initialQuantities[product.id] = 1;
+        initialQuantities[product.id] = 0;
       });
       setQuantities(initialQuantities);
     } catch (err) {
@@ -110,14 +137,14 @@ const Catalog: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedCategories]);
+  }, [selectedCategories, minPrice, maxPrice, minWeight, maxWeight]);
 
   useEffect(() => {
     if (!authLoading) {
       fetchCategories();
       fetchProducts();
     }
-  }, [authLoading, fetchCategories, fetchProducts]);
+  }, [authLoading, fetchCategories, fetchProducts, selectedCategories, minPrice, maxPrice, minWeight, maxWeight]);
 
   const handleCategoryToggle = (categoryId: number) => {
     setSelectedCategories((prev) =>
@@ -127,43 +154,73 @@ const Catalog: React.FC = () => {
     );
   };
 
-  const handleQuantityChange = (productId: number, delta: number) => {
-    setQuantities((prev) => ({
-      ...prev,
-      [productId]: Math.max(1, (prev[productId] || 1) + delta),
-    }));
-  };
+  const handleQuantityChange = async (product: Product, delta: number) => {
+    const currentQty = quantities[product.id] || 0;
+    const newQty = currentQty + delta;
 
-  const handleAddToCart = async (product: Product) => {
-    if (!user) {
-      alert("Please log in to add items to your cart.");
+    // Prevent going below 0 or above stock
+    if (newQty < 0 || newQty > product.quantityInStock) {
       return;
     }
+
+    if (!user) {
+      setMessage({ text: "Please log in to add items to your cart.", type: "error" });
+      setTimeout(() => setMessage(null), 3000);
+      return;
+    }
+
     const token = localStorage.getItem("token");
     if (!token) {
-      alert("Session expired. Please log in again.");
+      setMessage({ text: "Session expired. Please log in again.", type: "error" });
+      setTimeout(() => setMessage(null), 3000);
       return;
     }
-    const quantity = quantities[product.id] || 1;
+
     try {
+      // If quantity reaches 0, remove from cart by sending 0
+      // Otherwise, update the cart with new quantity
       const response = await fetch(`/api/cart/${user.customerID}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ product_id: product.id, quantity }),
+        body: JSON.stringify({ product_id: product.id, quantity: newQty }),
       });
+
       if (!response.ok) {
         const errData = await response.json();
-        throw new Error(errData.error || "Failed to add to cart");
+        throw new Error(errData.error || "Failed to update cart");
       }
-      alert(`Added ${quantity} x ${product.name} to cart!`);
-      setQuantities((prev) => ({ ...prev, [product.id]: 1 }));
+
+      setQuantities((prev) => ({
+        ...prev,
+        [product.id]: newQty,
+      }));
+
+      if (newQty > currentQty) {
+        setMessage({
+          text: `Added 1 x ${product.name} to cart`,
+          type: "success",
+        });
+      } else if (newQty === 0) {
+        setMessage({
+          text: `Removed ${product.name} from cart`,
+          type: "success",
+        });
+      }
+
+      setTimeout(() => setMessage(null), 3000);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to add to cart");
+      setMessage({
+        text: err instanceof Error ? err.message : "Failed to update cart",
+        type: "error",
+      });
+      setTimeout(() => setMessage(null), 3000);
     }
   };
+
+
 
   if (!authLoading && !user) {
     return <Navigate to="/login" replace />;
@@ -199,48 +256,152 @@ const Catalog: React.FC = () => {
             </div>
           )}
 
+          {message && (
+            <div style={{
+              ...styles.messageContainer,
+              backgroundColor: message.type === "success" ? "#d1e7dd" : "#f8d7da"
+            }}>
+              <p style={{
+                ...styles.messageText,
+                color: message.type === "success" ? "#0f5132" : "#842029"
+              }}>
+                {message.text}
+              </p>
+            </div>
+          )}
+
           {!loading && !error && (
             <>
               <div style={styles.filtersSection}>
-                <div style={styles.filterGroup}>
-                  <label style={styles.filterLabel}>Filter by Category:</label>
-                  <div style={styles.categoryButtonsContainer}>
-                    {categories.map((category) => (
-                      <button
-                        key={category.id}
-                        onClick={() => handleCategoryToggle(category.id)}
-                        style={{
-                          ...styles.categoryButton,
-                          ...(selectedCategories.includes(category.id)
-                            ? styles.categoryButtonActive
-                            : styles.categoryButtonInactive),
-                        }}
-                      >
-                        {category.name}
-                      </button>
-                    ))}
+                <div style={styles.categoryAndSortRow}>
+                  <div style={styles.filterGroup}>
+                    <label style={styles.filterLabel}>Filter by Category:</label>
+                    <div style={styles.categoryButtonsContainer}>
+                      {categories.map((category) => (
+                        <button
+                          key={category.id}
+                          onClick={() => handleCategoryToggle(category.id)}
+                          style={{
+                            ...styles.categoryButton,
+                            ...(selectedCategories.includes(category.id)
+                              ? styles.categoryButtonActive
+                              : styles.categoryButtonInactive),
+                          }}
+                        >
+                          {category.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={styles.sortSection}>
+                    <select
+                      value={sortField}
+                      onChange={(e) => setSortField(e.target.value as any)}
+                      style={styles.sortSelect}
+                    >
+                      <option value="price">Sort by Price</option>
+                      <option value="name">Sort by Name</option>
+                      <option value="weight">Sort by Weight</option>
+                    </select>
+                    <button
+                      onClick={() =>
+                        setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
+                      }
+                      style={styles.sortButton}
+                    >
+                      {sortOrder === "asc" ? "Ascending ↑" : "Descending ↓"}
+                    </button>
                   </div>
                 </div>
-              </div>
 
-              <div style={styles.sortSection}>
-                <select
-                  value={sortField}
-                  onChange={(e) => setSortField(e.target.value as any)}
-                  style={styles.sortSelect}
-                >
-                  <option value="price">Sort by Price</option>
-                  <option value="name">Sort by Name</option>
-                  <option value="weight">Sort by Weight</option>
-                </select>
-                <button
-                  onClick={() =>
-                    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
-                  }
-                  style={styles.sortButton}
-                >
-                  {sortOrder === "asc" ? "Ascending ↑" : "Descending ↓"}
-                </button>
+                <div style={styles.rangeFiltersRow}>
+                  <div style={styles.priceFilterGroup}>
+                    <label style={styles.filterLabel}>Filter by Price Range:</label>
+                    <div style={styles.priceInputContainer}>
+                      <div style={styles.priceInputWrapper}>
+                        <label htmlFor="minPrice" style={styles.priceLabel}>Min ($)</label>
+                        <input
+                          id="minPrice"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Min price"
+                          value={minPrice}
+                          onChange={(e) => setMinPrice(e.target.value)}
+                          style={styles.priceInput}
+                        />
+                      </div>
+                      <div style={styles.priceInputWrapper}>
+                        <label htmlFor="maxPrice" style={styles.priceLabel}>Max ($)</label>
+                        <input
+                          id="maxPrice"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Max price"
+                          value={maxPrice}
+                          onChange={(e) => setMaxPrice(e.target.value)}
+                          style={styles.priceInput}
+                        />
+                      </div>
+                      {(minPrice || maxPrice) && (
+                        <button
+                          onClick={() => {
+                            setMinPrice("");
+                            setMaxPrice("");
+                          }}
+                          style={styles.clearPriceButton}
+                        >
+                          Clear Price Filter
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={styles.weightFilterGroup}>
+                    <label style={styles.filterLabel}>Filter by Weight Range:</label>
+                    <div style={styles.weightInputContainer}>
+                      <div style={styles.weightInputWrapper}>
+                        <label htmlFor="minWeight" style={styles.weightLabel}>Min (lbs)</label>
+                        <input
+                          id="minWeight"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Min weight"
+                          value={minWeight}
+                          onChange={(e) => setMinWeight(e.target.value)}
+                          style={styles.weightInput}
+                        />
+                      </div>
+                      <div style={styles.weightInputWrapper}>
+                        <label htmlFor="maxWeight" style={styles.weightLabel}>Max (lbs)</label>
+                        <input
+                          id="maxWeight"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Max weight"
+                          value={maxWeight}
+                          onChange={(e) => setMaxWeight(e.target.value)}
+                          style={styles.weightInput}
+                        />
+                      </div>
+                      {(minWeight || maxWeight) && (
+                        <button
+                          onClick={() => {
+                            setMinWeight("");
+                            setMaxWeight("");
+                          }}
+                          style={styles.clearWeightButton}
+                        >
+                          Clear Weight Filter
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div style={styles.productsGrid}>
@@ -268,28 +429,37 @@ const Catalog: React.FC = () => {
 
                       <div style={styles.quantityContainer}>
                         <button
-                          onClick={() => handleQuantityChange(product.id, -1)}
-                          style={styles.quantityButton}
+                          onClick={() => handleQuantityChange(product, -1)}
+                          style={{
+                            ...styles.quantityButton,
+                            opacity: quantities[product.id] === 0 ? 0.5 : 1,
+                            cursor: quantities[product.id] === 0 ? "not-allowed" : "pointer",
+                          }}
+                          disabled={quantities[product.id] === 0}
                         >
                           -
                         </button>
                         <span style={styles.quantityValue}>
-                          {quantities[product.id] || 1}
+                          {quantities[product.id] || 0}
                         </span>
                         <button
-                          onClick={() => handleQuantityChange(product.id, 1)}
-                          style={styles.quantityButton}
+                          onClick={() => handleQuantityChange(product, 1)}
+                          style={{
+                            ...styles.quantityButton,
+                            opacity: (quantities[product.id] || 0) >= product.quantityInStock ? 0.5 : 1,
+                            cursor: (quantities[product.id] || 0) >= product.quantityInStock ? "not-allowed" : "pointer",
+                          }}
+                          disabled={(quantities[product.id] || 0) >= product.quantityInStock}
                         >
                           +
                         </button>
                       </div>
-
-                      <button
-                        onClick={() => handleAddToCart(product)}
-                        style={styles.addToCartButton}
-                      >
-                        Add to Cart
-                      </button>
+                      {product.quantityInStock === 0 && (
+                        <p style={styles.outOfStockText}>Out of Stock</p>
+                      )}
+                      {product.quantityInStock > 0 && product.quantityInStock <= 5 && (
+                        <p style={styles.lowStockText}>Only {product.quantityInStock} left in stock</p>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -298,8 +468,8 @@ const Catalog: React.FC = () => {
               {sortedProducts.length === 0 && (
                 <div style={styles.emptyContainer}>
                   <p style={styles.emptyText}>
-                    {selectedCategories.length > 0
-                      ? "No products available in the selected categories."
+                    {selectedCategories.length > 0 || minPrice || maxPrice || minWeight || maxWeight
+                      ? "No products match your current filters. Try adjusting your selections."
                       : "No products available at the moment."}
                   </p>
                 </div>
@@ -386,11 +556,22 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundColor: "#ffffff",
     borderRadius: "8px",
     boxShadow: "0 1px 4px rgba(0, 0, 0, 0.08)",
+    display: "flex",
+    flexDirection: "column",
+    gap: "2rem",
+  },
+  categoryAndSortRow: {
+    display: "flex",
+    gap: "2rem",
+    alignItems: "flex-start",
+    flexWrap: "wrap",
   },
   filterGroup: {
     display: "flex",
     flexDirection: "column",
     gap: "1rem",
+    flex: 1,
+    minWidth: "300px",
   },
   filterLabel: {
     fontSize: "1rem",
@@ -419,11 +600,103 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundColor: "#ffffff",
     color: "#2d6a4f",
   },
+  priceFilterGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1rem",
+    flex: 1,
+    minWidth: "300px",
+  },
+  priceInputContainer: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "1rem",
+    alignItems: "flex-end",
+  },
+  priceInputWrapper: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+  },
+  priceLabel: {
+    fontSize: "0.9rem",
+    fontWeight: 500,
+    color: "#6c757d",
+  },
+  priceInput: {
+    padding: "0.6rem 0.875rem",
+    border: "1px solid #dee2e6",
+    borderRadius: "4px",
+    fontSize: "1rem",
+    width: "150px",
+    boxSizing: "border-box",
+  },
+  clearPriceButton: {
+    padding: "0.6rem 1rem",
+    backgroundColor: "#6c757d",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: "4px",
+    fontSize: "0.9rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "background-color 0.2s ease",
+  },
+  weightFilterGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1rem",
+    flex: 1,
+    minWidth: "300px",
+  },
+  rangeFiltersRow: {
+    display: "flex",
+    gap: "2rem",
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+  },
+  weightInputContainer: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "1rem",
+    alignItems: "flex-end",
+  },
+  weightInputWrapper: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+  },
+  weightLabel: {
+    fontSize: "0.9rem",
+    fontWeight: 500,
+    color: "#6c757d",
+  },
+  weightInput: {
+    padding: "0.6rem 0.875rem",
+    border: "1px solid #dee2e6",
+    borderRadius: "4px",
+    fontSize: "1rem",
+    width: "150px",
+    boxSizing: "border-box",
+  },
+  clearWeightButton: {
+    padding: "0.6rem 1rem",
+    backgroundColor: "#6c757d",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: "4px",
+    fontSize: "0.9rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "background-color 0.2s ease",
+  },
   sortSection: {
-    marginBottom: "2rem",
     display: "flex",
     gap: "1rem",
     flexWrap: "wrap",
+    alignItems: "flex-end",
+    flex: 1,
+    minWidth: "250px",
   },
   sortSelect: {
     padding: "0.75rem 1rem",
@@ -535,6 +808,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    transition: "opacity 0.2s ease",
   },
   quantityValue: {
     fontSize: "1.1rem",
@@ -543,17 +817,29 @@ const styles: { [key: string]: React.CSSProperties } = {
     minWidth: "30px",
     textAlign: "center",
   },
-  addToCartButton: {
-    width: "100%",
-    backgroundColor: "#2d6a4f",
-    color: "#ffffff",
-    padding: "0.875rem",
-    border: "none",
+  messageContainer: {
+    marginBottom: "1.5rem",
+    padding: "1rem",
     borderRadius: "6px",
+    border: "1px solid",
+    borderColor: "inherit",
+  },
+  messageText: {
+    margin: 0,
     fontSize: "1rem",
+    fontWeight: 500,
+  },
+  outOfStockText: {
+    color: "#dc3545",
+    fontSize: "0.9rem",
     fontWeight: 600,
-    cursor: "pointer",
-    transition: "background-color 0.2s ease",
+    margin: "0.5rem 0 0 0",
+  },
+  lowStockText: {
+    color: "#ff9800",
+    fontSize: "0.9rem",
+    fontWeight: 600,
+    margin: "0.5rem 0 0 0",
   },
   emptyContainer: {
     textAlign: "center",

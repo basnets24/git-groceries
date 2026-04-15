@@ -20,40 +20,56 @@ def fetch_all_categories() -> List[Dict]:
     return rows
 
 
-def fetch_active_products(category_ids: Optional[List[int]] = None) -> List[Dict]:
+def fetch_active_products(
+    category_ids: Optional[List[int]] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    min_weight: Optional[float] = None,
+    max_weight: Optional[float] = None,
+) -> List[Dict]:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     
+    conditions = ["p.IsActive = TRUE"]
+    params: List = []
+    
     if category_ids and len(category_ids) > 0:
         placeholders = ",".join(["%s"] * len(category_ids))
-        query = f"""
-        SELECT p.ProductID    AS id,
-               p.Name         AS name,
-               p.Price        AS price,
-               p.WeightLbs    AS weight,
-               pc.Name        AS category,
-               p.IsActive     AS active
-        FROM Product p
-        JOIN ProductCategory pc ON p.ProductCategoryID = pc.ProductCategoryID
-        WHERE p.IsActive = TRUE AND p.ProductCategoryID IN ({placeholders})
-        ORDER BY p.ProductID
-        """
-        cursor.execute(query, category_ids)
-    else:
-        cursor.execute(
-            """
-            SELECT p.ProductID    AS id,
-                   p.Name         AS name,
-                   p.Price        AS price,
-                   p.WeightLbs    AS weight,
-                   pc.Name        AS category,
-                   p.IsActive     AS active
-            FROM Product p
-            JOIN ProductCategory pc ON p.ProductCategoryID = pc.ProductCategoryID
-            WHERE p.IsActive = TRUE
-            ORDER BY p.ProductID
-            """
-        )
+        conditions.append(f"p.ProductCategoryID IN ({placeholders})")
+        params.extend(category_ids)
+    
+    if min_price is not None:
+        conditions.append("p.Price >= %s")
+        params.append(min_price)
+    
+    if max_price is not None:
+        conditions.append("p.Price <= %s")
+        params.append(max_price)
+    
+    if min_weight is not None:
+        conditions.append("p.WeightLbs >= %s")
+        params.append(min_weight)
+    
+    if max_weight is not None:
+        conditions.append("p.WeightLbs <= %s")
+        params.append(max_weight)
+    
+    where_clause = " AND ".join(conditions)
+    query = f"""
+    SELECT p.ProductID    AS id,
+           p.Name         AS name,
+           p.Price        AS price,
+           p.WeightLbs    AS weight,
+           pc.Name        AS category,
+           p.IsActive     AS active,
+           COALESCE(i.QuantityInStock, 0) AS quantityInStock
+    FROM Product p
+    JOIN ProductCategory pc ON p.ProductCategoryID = pc.ProductCategoryID
+    LEFT JOIN Inventory i ON p.ProductID = i.ProductID
+    WHERE {where_clause}
+    ORDER BY p.ProductID
+    """
+    cursor.execute(query, params)
     
     rows = cursor.fetchall()
     cursor.close()

@@ -19,11 +19,15 @@ def get_categories():
 @auth_required
 def get_products():
     category_ids = request.args.getlist("category_id", type=int)
+    min_price = request.args.get("min_price", type=float)
+    max_price = request.args.get("max_price", type=float)
+    min_weight = request.args.get("min_weight", type=float)
+    max_weight = request.args.get("max_weight", type=float)
     
     if not category_ids:
         category_ids = None
     
-    products = services.get_products(category_ids)
+    products = services.get_products(category_ids, min_price, max_price, min_weight, max_weight)
     return jsonify({"products": products})
 
 
