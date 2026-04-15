@@ -18,6 +18,7 @@ def fetch_inventory() -> List[Dict]:
         FROM Inventory i
         JOIN Product p  ON i.ProductID = p.ProductID
         JOIN ProductCategory pc ON p.ProductCategoryID = pc.ProductCategoryID
+        WHERE p.IsActive = TRUE
         ORDER BY p.ProductID
         """
     )
