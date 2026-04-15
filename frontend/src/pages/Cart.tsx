@@ -62,6 +62,76 @@ const Cart: React.FC = () => {
     }
   }, [authLoading, fetchCart]);
 
+  const handleQuantityChange = async (item: CartItem, delta: number) => {
+    const newQty = item.quantity + delta;
+
+    // Prevent going below 0
+    if (newQty < 0) {
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      return;
+    }
+
+    try {
+      // Send the delta (change amount), not the absolute quantity
+      const response = await fetch(`/api/cart/${customerId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ product_id: item.product_id, quantity: delta }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update cart");
+      }
+
+      // Update local state with the new quantity
+      setItems((prevItems) =>
+        prevItems
+          .map((i) =>
+            i.product_id === item.product_id ? { ...i, quantity: newQty } : i
+          )
+          .filter((i) => i.quantity > 0) // Remove items with quantity 0
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleRemoveItem = async (item: CartItem) => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/cart/${customerId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ product_id: item.product_id, quantity: -item.quantity }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to remove item from cart");
+      }
+
+      // remove item
+      setItems((prevItems) =>
+        prevItems.filter((i) => i.product_id !== item.product_id)
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const subtotal = items.reduce(
     (sum, item) => sum + item.price_at_checkout * item.quantity,
     0
@@ -127,6 +197,7 @@ const Cart: React.FC = () => {
                       <th style={styles.th}>Price</th>
                       <th style={styles.th}>Qty</th>
                       <th style={styles.th}>Subtotal</th>
+                      <th style={styles.th}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -141,9 +212,40 @@ const Cart: React.FC = () => {
                         <td style={styles.td}>
                           ${item.price_at_checkout.toFixed(2)}
                         </td>
-                        <td style={styles.td}>{item.quantity}</td>
+                        <td style={styles.td}>
+                          <div style={styles.quantityContainer}>
+                            <button
+                              onClick={() => handleQuantityChange(item, -1)}
+                              style={{
+                                ...styles.quantityButton,
+                                opacity: item.quantity === 0 ? 0.5 : 1,
+                                cursor: item.quantity === 0 ? "not-allowed" : "pointer",
+                              }}
+                              disabled={item.quantity === 0}
+                            >
+                              -
+                            </button>
+                            <span style={styles.quantityValue}>
+                              {item.quantity}
+                            </span>
+                            <button
+                              onClick={() => handleQuantityChange(item, 1)}
+                              style={styles.quantityButton}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </td>
                         <td style={styles.td}>
                           ${(item.price_at_checkout * item.quantity).toFixed(2)}
+                        </td>
+                        <td style={styles.td}>
+                          <button
+                            onClick={() => handleRemoveItem(item)}
+                            style={styles.removeButton}
+                          >
+                            Remove
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -401,6 +503,44 @@ const styles: { [key: string]: React.CSSProperties } = {
     textDecoration: "none",
     fontWeight: 600,
     fontSize: "1rem",
+  },
+  quantityContainer: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "0.5rem",
+  },
+  quantityButton: {
+    width: "28px",
+    height: "28px",
+    backgroundColor: "#e9ecef",
+    border: "none",
+    borderRadius: "4px",
+    fontSize: "1rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "opacity 0.2s ease",
+  },
+  quantityValue: {
+    fontSize: "0.95rem",
+    fontWeight: 600,
+    color: "#1b4332",
+    minWidth: "25px",
+    textAlign: "center",
+  },
+  removeButton: {
+    backgroundColor: "#dc3545",
+    color: "#ffffff",
+    padding: "0.5rem 1rem",
+    border: "none",
+    borderRadius: "4px",
+    fontSize: "0.9rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "background-color 0.2s ease",
   },
 };
 
