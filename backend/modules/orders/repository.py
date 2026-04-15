@@ -17,10 +17,10 @@ def fetch_customer_orders(customer_id: int) -> List[Dict]:
             so.State AS state,
             so.Zip AS zip,
             so.UserID AS customer_id,
-            p.Amount AS total_amount,
-            p.Status AS payment_status,
-            p.OccurredAt AS order_date,
-            GROUP_CONCAT(
+            MAX(p.Amount) AS total_amount,
+            MAX(p.Status) AS payment_status,
+            MAX(p.OccurredAt) AS order_date,
+            GROUP_CONCAT(DISTINCT
                 CONCAT(
                     soi.Quantity, 'x ',
                     prod.Name, ' (',
@@ -33,7 +33,7 @@ def fetch_customer_orders(customer_id: int) -> List[Dict]:
         LEFT JOIN ShoppingOrderItem soi ON so.ShoppingOrderID = soi.ShoppingOrderID
         LEFT JOIN Product prod ON soi.ProductID = prod.ProductID
         WHERE so.UserID = %s AND so.Status = 'COMPLETED'
-        GROUP BY so.ShoppingOrderID, p.PaymentID
+        GROUP BY so.ShoppingOrderID
         ORDER BY so.ShoppingOrderID DESC
         """,
         (customer_id,),
