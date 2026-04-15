@@ -30,8 +30,8 @@ def add_to_cart(customer_id: int):
         raise ValidationError("Missing 'product_id' in request body")
 
     quantity = data.get("quantity", 1)
-    if not isinstance(quantity, int) or quantity < 1:
-        raise ValidationError("Quantity must be a positive integer")
+    if not isinstance(quantity, int):
+        raise ValidationError("Quantity must be an integer")
 
     result = services.add_to_cart(
         customer_id=customer_id,

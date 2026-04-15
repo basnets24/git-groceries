@@ -142,3 +142,17 @@ def insert_order_item(
     conn.commit()
     cursor.close()
     conn.close()
+
+
+def delete_order_item(order_id: int, product_id: int) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM ShoppingOrderItem WHERE ShoppingOrderID = %s AND ProductID = %s",
+        (order_id, product_id),
+    )
+    conn.commit()
+    deleted = cursor.rowcount > 0
+    cursor.close()
+    conn.close()
+    return deleted

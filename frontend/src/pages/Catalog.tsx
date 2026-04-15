@@ -34,7 +34,6 @@ const Catalog: React.FC = () => {
   const [quantities, setQuantities] = useState<{ [key: number]: number }>({});
   const [sortField, setSortField] = useState<"price" | "name" | "weight">("price");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-  const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   const filteredProducts = selectedCategories.length > 0
     ? products.filter((p) =>
@@ -199,28 +198,24 @@ const Catalog: React.FC = () => {
     }
 
     if (!user) {
-      setMessage({ text: "Please log in to add items to your cart.", type: "error" });
-      setTimeout(() => setMessage(null), 3000);
       return;
     }
 
     const token = localStorage.getItem("token");
     if (!token) {
-      setMessage({ text: "Session expired. Please log in again.", type: "error" });
-      setTimeout(() => setMessage(null), 3000);
       return;
     }
 
     try {
-      // If quantity reaches 0, remove from cart by sending 0
-      // Otherwise, update the cart with new quantity
+      // Send the delta (change amount), not the absolute quantity
+      // The backend will add this to the existing quantity
       const response = await fetch(`/api/cart/${user.customerID}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ product_id: product.id, quantity: newQty }),
+        body: JSON.stringify({ product_id: product.id, quantity: delta }),
       });
 
       if (!response.ok) {
@@ -228,30 +223,13 @@ const Catalog: React.FC = () => {
         throw new Error(errData.error || "Failed to update cart");
       }
 
+      // Update local state with the new absolute quantity
       setQuantities((prev) => ({
         ...prev,
         [product.id]: newQty,
       }));
-
-      if (newQty > currentQty) {
-        setMessage({
-          text: `Added 1 x ${product.name} to cart`,
-          type: "success",
-        });
-      } else if (newQty === 0) {
-        setMessage({
-          text: `Removed ${product.name} from cart`,
-          type: "success",
-        });
-      }
-
-      setTimeout(() => setMessage(null), 3000);
     } catch (err) {
-      setMessage({
-        text: err instanceof Error ? err.message : "Failed to update cart",
-        type: "error",
-      });
-      setTimeout(() => setMessage(null), 3000);
+      console.error(err);
     }
   };
 
@@ -288,20 +266,6 @@ const Catalog: React.FC = () => {
               >
                 Retry
               </button>
-            </div>
-          )}
-
-          {message && (
-            <div style={{
-              ...styles.messageContainer,
-              backgroundColor: message.type === "success" ? "#d1e7dd" : "#f8d7da"
-            }}>
-              <p style={{
-                ...styles.messageText,
-                color: message.type === "success" ? "#0f5132" : "#842029"
-              }}>
-                {message.text}
-              </p>
             </div>
           )}
 
@@ -851,18 +815,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "#1b4332",
     minWidth: "30px",
     textAlign: "center",
-  },
-  messageContainer: {
-    marginBottom: "1.5rem",
-    padding: "1rem",
-    borderRadius: "6px",
-    border: "1px solid",
-    borderColor: "inherit",
-  },
-  messageText: {
-    margin: 0,
-    fontSize: "1rem",
-    fontWeight: 500,
   },
   outOfStockText: {
     color: "#dc3545",

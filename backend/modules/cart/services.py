@@ -28,6 +28,9 @@ def add_to_cart(customer_id: int, product_id: int, quantity: int) -> Dict:
 
     order = repository.fetch_inprogress_order(customer_id)
     if order is None:
+        if quantity <= 0:
+            # Can't add non-positive quantity to non-existent order
+            raise CartServiceError("Cannot remove item from empty order", 400)
         order_id = repository.create_inprogress_order(customer_id)
     else:
         order_id = order["ShoppingOrderID"]
@@ -35,14 +38,23 @@ def add_to_cart(customer_id: int, product_id: int, quantity: int) -> Dict:
     existing_item = repository.fetch_order_item(order_id, product_id)
     if existing_item:
         new_quantity = existing_item["Quantity"] + quantity
-        repository.update_order_item_quantity(order_id, product_id, new_quantity)
+        
+        # If quantity becomes 0 or negative, remove the item
+        if new_quantity <= 0:
+            repository.delete_order_item(order_id, product_id)
+        else:
+            repository.update_order_item_quantity(order_id, product_id, new_quantity)
     else:
-        repository.insert_order_item(
-            order_id=order_id,
-            product_id=product_id,
-            quantity=quantity,
-            price_at_checkout=product["Price"],
-            weight_at_checkout=product["WeightLbs"],
-        )
+        # Only insert if quantity is positive
+        if quantity > 0:
+            repository.insert_order_item(
+                order_id=order_id,
+                product_id=product_id,
+                quantity=quantity,
+                price_at_checkout=product["Price"],
+                weight_at_checkout=product["WeightLbs"],
+            )
+        else:
+            raise CartServiceError("Cannot add non-positive quantity to non-existent item", 400)
 
-    return {"order_id": order_id, "product_id": product_id, "quantity": quantity}
+    return {"order_id": order_id, "product_id": product_id, "quantity_delta": quantity}
