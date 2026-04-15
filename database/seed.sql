@@ -12,7 +12,9 @@ INSERT INTO ProductCategory (Name)
 VALUES
     ('Fresh Produce'),
     ('Deli Meats'),
-    ('Dairy');
+    ('Dairy'),
+    ('Bakery'),
+    ('Beverages');
 
 INSERT INTO Product (Name, Price, WeightLbs, ProductCategoryID, isActive)
 VALUES
@@ -30,20 +32,40 @@ VALUES
     -- Dairy
     ('Sliced American Cheese Pack', 3.99, 0.50, 3, TRUE),
     ('Whole Milk Gallon', 4.49, 8.60, 3, TRUE),
-    ('Large Eggs Dozen', 3.29, 1.50, 3, TRUE);
+    ('Large Eggs Dozen', 3.29, 1.50, 3, TRUE),
+
+    -- Bakery
+    ('Blueberry Muffins (8 count)', 7.99, 1.95, 4, TRUE),
+    ('Multigrain Sandwich Bread Loaf', 6.99, 1.45, 4, TRUE),
+    ('Sourdough Loaf', 5.85, 1.35, 4, TRUE),
+    ('Chocolate Chip Cookies (10 count)', 7.99, 0.75, 4, TRUE),
+
+    -- Beverages
+    ('Orange Soda', 2.49, 0.75, 5, TRUE),
+    ('Pepsi Soda', 2.49, 0.75, 5, FALSE),
+    ('Coke Soda', 2.49, 0.75, 5, TRUE),
+    ('Apple Juice', 7.85, 8.30, 5, TRUE);
 
 INSERT INTO Inventory (ProductID, QuantityInStock, ReservedQty)
 VALUES
-    (1, 120, 4),
-    (2, 80, 2),
-    (3, 60, 3),
-    (4, 75, 1),
-    (5, 40, 2),
-    (6, 35, 1),
-    (7, 30, 2),
-    (8, 50, 2),
-    (9, 45, 1),
-    (10, 70, 4);
+    (1, 120, 0),
+    (2, 80, 0),
+    (3, 60, 0),
+    (4, 75, 0),
+    (5, 40, 0),
+    (6, 35, 0),
+    (7, 30, 0),
+    (8, 50, 0),
+    (9, 45, 0),
+    (10, 70, 0),
+    (11, 3, 0),
+    (12, 80, 0),
+    (13, 60, 0),
+    (14, 75, 0),
+    (15, 40, 0),
+    (16, 0, 0),
+    (17, 30, 0),
+    (18, 30, 0);
 
 INSERT INTO ShoppingOrder (UserID, Street, City, State, Zip, Status)
 VALUES
