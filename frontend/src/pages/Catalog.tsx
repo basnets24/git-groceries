@@ -127,11 +127,17 @@ const Catalog: React.FC = () => {
       }
       const data = await response.json();
       setProducts(data.products);
-      const initialQuantities: { [key: number]: number } = {};
-      data.products.forEach((product: Product) => {
-        initialQuantities[product.id] = 0;
+      // Only initialize quantities for products that don't already have a quantity set
+      // This prevents overwriting cart quantities from fetchCart
+      setQuantities((prev) => {
+        const newQuantities = { ...prev };
+        data.products.forEach((product: Product) => {
+          if (!(product.id in prev)) {
+            newQuantities[product.id] = 0;
+          }
+        });
+        return newQuantities;
       });
-      setQuantities(initialQuantities);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -139,12 +145,41 @@ const Catalog: React.FC = () => {
     }
   }, [selectedCategories, minPrice, maxPrice, minWeight, maxWeight]);
 
+  const fetchCart = useCallback(async () => {
+    if (!user) {
+      return;
+    }
+    const token = localStorage.getItem("token");
+    if (!token) {
+      return;
+    }
+    try {
+      const response = await fetch(`/api/cart/${user.customerID}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error("Failed to fetch cart");
+      }
+      const data = await response.json();
+      const cartQuantities: { [key: number]: number } = {};
+      data.items.forEach((item: any) => {
+        cartQuantities[item.product_id] = item.quantity;
+      });
+      setQuantities((prev) => ({ ...prev, ...cartQuantities }));
+    } catch (err) {
+      console.error("Error fetching cart:", err);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (!authLoading) {
       fetchCategories();
       fetchProducts();
+      fetchCart();
     }
-  }, [authLoading, fetchCategories, fetchProducts, selectedCategories, minPrice, maxPrice, minWeight, maxWeight]);
+  }, [authLoading, fetchCategories, fetchProducts, fetchCart, selectedCategories, minPrice, maxPrice, minWeight, maxWeight]);
 
   const handleCategoryToggle = (categoryId: number) => {
     setSelectedCategories((prev) =>
