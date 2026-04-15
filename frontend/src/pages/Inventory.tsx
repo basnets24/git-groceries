@@ -2,31 +2,64 @@ import React, { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
+interface Category {
+  id: number;
+  name: string;
+}
+
 interface InventoryItem {
   id: number;
   name: string;
+  category_id: number;
   category: string;
   price: number;
   quantity: number;
   lowStockThreshold: number;
 }
 
+interface AddForm {
+  name: string;
+  price: string;
+  weight: string;
+  category_id: string;
+  quantity: string;
+}
+
+const EMPTY_ADD_FORM: AddForm = {
+  name: "",
+  price: "",
+  weight: "",
+  category_id: "",
+  quantity: "0",
+};
+
 const Inventory: React.FC = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editQuantity, setEditQuantity] = useState<number>(0);
 
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState<AddForm>(EMPTY_ADD_FORM);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addSaving, setAddSaving] = useState(false);
+
+  const token = () => localStorage.getItem("token");
+
   useEffect(() => {
     const fetchInventory = async () => {
       try {
-        const response = await fetch("/api/inventory");
-        if (!response.ok) {
-          throw new Error("Failed to fetch inventory");
-        }
-        const data = await response.json();
-        setInventory(data.inventory);
+        const t = token();
+        if (!t) throw new Error("Unauthorized: please log in first");
+
+        const invRes = await fetch("/api/inventory", {
+          headers: { Authorization: `Bearer ${t}` },
+        });
+        if (!invRes.ok) throw new Error("Failed to fetch inventory");
+        const invData = await invRes.json();
+        setInventory(invData.inventory);
       } catch (err) {
         setError(err instanceof Error ? err.message : "An error occurred");
       } finally {
@@ -44,9 +77,15 @@ const Inventory: React.FC = () => {
 
   const handleSaveQuantity = async (id: number) => {
     try {
+      const t = token();
+      if (!t) throw new Error("Unauthorized");
+
       const response = await fetch(`/api/inventory/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${t}`,
+        },
         body: JSON.stringify({ quantity: editQuantity }),
       });
       if (!response.ok) {
@@ -74,6 +113,88 @@ const Inventory: React.FC = () => {
     return item.quantity <= item.lowStockThreshold;
   };
 
+  const handleOpenAddModal = () => {
+    // Derive unique categories from already-loaded inventory items
+    const seen = new Set<string>();
+    const cats: Category[] = [];
+    for (const item of inventory) {
+      if (!seen.has(item.category)) {
+        seen.add(item.category);
+        cats.push({ id: item.category_id, name: item.category });
+      }
+    }
+    setCategories(cats);
+    setAddForm({
+      ...EMPTY_ADD_FORM,
+      category_id: cats[0] ? String(cats[0].id) : "",
+    });
+    setAddError(null);
+    setShowAddModal(true);
+  };
+
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddError(null);
+
+    const price = parseFloat(addForm.price);
+    const weight = parseFloat(addForm.weight);
+    const quantity = parseInt(addForm.quantity) || 0;
+    const category_id = parseInt(addForm.category_id);
+
+    if (!addForm.name.trim()) return setAddError("Name is required.");
+    if (isNaN(price) || price <= 0) return setAddError("Price must be a positive number.");
+    if (isNaN(weight) || weight <= 0) return setAddError("Weight must be a positive number.");
+    if (isNaN(category_id)) return setAddError("Select a category.");
+
+    setAddSaving(true);
+    try {
+      const t = token();
+      if (!t) throw new Error("Unauthorized");
+
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+        body: JSON.stringify({ name: addForm.name.trim(), price, weight, category_id, quantity }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to add product");
+
+      const invRes = await fetch("/api/inventory", {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      const invData = await invRes.json();
+      setInventory(invData.inventory);
+
+      setShowAddModal(false);
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : "Failed to add product");
+    } finally {
+      setAddSaving(false);
+    }
+  };
+
+  const handleDeleteProduct = async (item: InventoryItem) => {
+    if (!window.confirm(`Remove "${item.name}" from the catalog? This will hide it from customers.`)) {
+      return;
+    }
+    try {
+      const t = token();
+      if (!t) throw new Error("Unauthorized");
+
+      const res = await fetch(`/api/products/${item.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete product");
+      }
+      setInventory((prev) => prev.filter((p) => p.id !== item.id));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete product");
+    }
+  };
+
   return (
     <div style={styles.pageContainer}>
       <Navbar />
@@ -81,10 +202,15 @@ const Inventory: React.FC = () => {
       <main style={styles.main}>
         <div style={styles.container}>
           <div style={styles.header}>
-            <h1 style={styles.pageTitle}>Inventory Management</h1>
-            <p style={styles.pageSubtitle}>
-              Employee access only - Track and manage product inventory
-            </p>
+            <div>
+              <h1 style={styles.pageTitle}>Inventory Management</h1>
+              <p style={styles.pageSubtitle}>
+                Employee access only - Track and manage product inventory
+              </p>
+            </div>
+            <button onClick={handleOpenAddModal} style={styles.addButton}>
+              + Add Product
+            </button>
           </div>
 
           {loading && (
@@ -196,12 +322,20 @@ const Inventory: React.FC = () => {
                               </button>
                             </div>
                           ) : (
-                            <button
-                              onClick={() => handleEditClick(item)}
-                              style={styles.editButton}
-                            >
-                              Edit
-                            </button>
+                            <div style={styles.actionButtons}>
+                              <button
+                                onClick={() => handleEditClick(item)}
+                                style={styles.editButton}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteProduct(item)}
+                                style={styles.deleteButton}
+                              >
+                                Delete
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -221,6 +355,96 @@ const Inventory: React.FC = () => {
       </main>
 
       <Footer />
+
+      {showAddModal && (
+        <div style={styles.overlay}>
+          <div style={styles.modal}>
+            <h2 style={styles.modalTitle}>Add New Product</h2>
+            <form onSubmit={handleAddProduct} style={styles.modalForm}>
+              <label style={styles.fieldLabel}>
+                Product Name
+                <input
+                  type="text"
+                  value={addForm.name}
+                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                  style={styles.fieldInput}
+                  placeholder="e.g. Organic Apples"
+                />
+              </label>
+
+              <div style={styles.formRow}>
+                <label style={styles.fieldLabel}>
+                  Price ($)
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={addForm.price}
+                    onChange={(e) => setAddForm({ ...addForm, price: e.target.value })}
+                    style={styles.fieldInput}
+                    placeholder="e.g. 3.99"
+                  />
+                </label>
+                <label style={styles.fieldLabel}>
+                  Weight (lbs)
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={addForm.weight}
+                    onChange={(e) => setAddForm({ ...addForm, weight: e.target.value })}
+                    style={styles.fieldInput}
+                    placeholder="e.g. 1.5"
+                  />
+                </label>
+              </div>
+
+              <div style={styles.formRow}>
+                <label style={styles.fieldLabel}>
+                  Category
+                  <select
+                    value={addForm.category_id}
+                    onChange={(e) => setAddForm({ ...addForm, category_id: e.target.value })}
+                    style={styles.fieldSelect}
+                  >
+                    {categories.map((c) => (
+                      <option key={c.id} value={String(c.id)}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label style={styles.fieldLabel}>
+                  Initial Stock Qty
+                  <input
+                    type="number"
+                    min="0"
+                    value={addForm.quantity}
+                    onChange={(e) => setAddForm({ ...addForm, quantity: e.target.value })}
+                    style={styles.fieldInput}
+                  />
+                </label>
+              </div>
+
+              {addError && <p style={styles.modalError}>{addError}</p>}
+
+              <div style={styles.modalActions}>
+                <button type="submit" style={styles.primaryButton} disabled={addSaving}>
+                  {addSaving ? "Adding..." : "Add Product"}
+                </button>
+                <button
+                  type="button"
+                  style={styles.secondaryButton}
+                  onClick={() => setShowAddModal(false)}
+                  disabled={addSaving}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -241,7 +465,12 @@ const styles: { [key: string]: React.CSSProperties } = {
     margin: "0 auto",
   },
   header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: "2rem",
+    gap: "1rem",
+    flexWrap: "wrap",
   },
   pageTitle: {
     fontSize: "2.25rem",
@@ -254,6 +483,17 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "1rem",
     color: "#6c757d",
     textAlign: "center",
+  },
+  addButton: {
+    backgroundColor: "#1b4332",
+    color: "#ffffff",
+    padding: "0.75rem 1.5rem",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "1rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
   },
   loadingContainer: {
     display: "flex",
@@ -374,6 +614,15 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "0.85rem",
     cursor: "pointer",
   },
+  deleteButton: {
+    backgroundColor: "#dc3545",
+    color: "#ffffff",
+    padding: "0.5rem 1rem",
+    border: "none",
+    borderRadius: "4px",
+    fontSize: "0.85rem",
+    cursor: "pointer",
+  },
   saveButton: {
     backgroundColor: "#28a745",
     color: "#ffffff",
@@ -399,6 +648,96 @@ const styles: { [key: string]: React.CSSProperties } = {
   emptyText: {
     color: "#6c757d",
     fontSize: "1.1rem",
+  },
+  overlay: {
+    position: "fixed",
+    inset: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000,
+    padding: "1rem",
+  },
+  modal: {
+    backgroundColor: "#ffffff",
+    borderRadius: "12px",
+    padding: "2rem",
+    width: "100%",
+    maxWidth: "520px",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+  },
+  modalTitle: {
+    fontSize: "1.5rem",
+    fontWeight: 700,
+    color: "#1b4332",
+    margin: "0 0 1.5rem 0",
+  },
+  modalForm: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1rem",
+  },
+  formRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "1rem",
+  },
+  fieldLabel: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.35rem",
+    fontSize: "0.9rem",
+    fontWeight: 600,
+    color: "#495057",
+  },
+  fieldInput: {
+    padding: "0.65rem 0.75rem",
+    border: "1px solid #ced4da",
+    borderRadius: "6px",
+    fontSize: "1rem",
+    color: "#212529",
+  },
+  fieldSelect: {
+    padding: "0.65rem 0.75rem",
+    border: "1px solid #ced4da",
+    borderRadius: "6px",
+    fontSize: "1rem",
+    backgroundColor: "#fff",
+    color: "#212529",
+  },
+  modalError: {
+    margin: 0,
+    color: "#dc3545",
+    fontSize: "0.9rem",
+    fontWeight: 500,
+  },
+  modalActions: {
+    display: "flex",
+    gap: "0.75rem",
+    marginTop: "0.5rem",
+  },
+  primaryButton: {
+    flex: 1,
+    padding: "0.75rem",
+    backgroundColor: "#1b4332",
+    color: "#fff",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "1rem",
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  secondaryButton: {
+    flex: 1,
+    padding: "0.75rem",
+    backgroundColor: "#e9ecef",
+    color: "#495057",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "1rem",
+    fontWeight: 600,
+    cursor: "pointer",
   },
 };
 

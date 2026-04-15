@@ -103,6 +103,20 @@ def insert_inventory_item(product_id: int, quantity: int) -> None:
     conn.close()
 
 
+def deactivate_product(product_id: int) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE Product SET IsActive = FALSE WHERE ProductID = %s",
+        (product_id,),
+    )
+    conn.commit()
+    affected = cursor.rowcount
+    cursor.close()
+    conn.close()
+    return affected > 0
+
+
 def fetch_product_by_id(product_id: int) -> Optional[Dict]:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)

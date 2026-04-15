@@ -47,3 +47,11 @@ def create_product():
         quantity=initial_qty,
     )
     return jsonify({"product": product}), 201
+
+@products_bp.route("/api/products/<int:product_id>", methods=["DELETE"])
+@roles_required(UserRole.EMPLOYEE, UserRole.MANAGER, UserRole.SUPERADMIN)
+def delete_product(product_id: int):
+    from exceptions import NotFoundError
+    if not services.delete_product(product_id):
+        raise NotFoundError("Product not found")
+    return jsonify({"message": f"Product {product_id} has been deactivated"})

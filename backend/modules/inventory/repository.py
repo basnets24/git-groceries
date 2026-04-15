@@ -10,6 +10,7 @@ def fetch_inventory() -> List[Dict]:
         """
         SELECT p.ProductID        AS id,
                p.Name             AS name,
+               pc.ProductCategoryID  AS category_id,
                pc.Name            AS category,
                p.Price            AS price,
                i.QuantityInStock  AS quantity,

@@ -37,3 +37,6 @@ def create_product(
     product["price"] = float(product["price"])
     product["weight"] = float(product["weight"])
     return product
+
+def delete_product(product_id: int) -> bool:
+    return repository.deactivate_product(product_id)
