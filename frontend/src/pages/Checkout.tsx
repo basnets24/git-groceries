@@ -136,6 +136,38 @@ const Checkout: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [paymentSuccess, setPaymentSuccess] = useState(false);
+    const [address, setAddress] = useState("");
+    const [startingDelivery, setStartingDelivery] = useState(false);
+    const [deliveryError, setDeliveryError] = useState<string | null>(null);
+
+    const startDelivery = async () => {
+        if (!checkout || !address.trim()) return;
+        setStartingDelivery(true);
+        setDeliveryError(null);
+        try {
+            const token = localStorage.getItem("token");
+            const res = await fetch("/api/delivery/start", {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    order_id: checkout.order_id,
+                    address: address.trim(),
+                }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "Failed to start delivery tracking");
+            }
+            const trip = await res.json();
+            navigate(`/track/${trip.trip_id}`, { state: { trip } });
+        } catch (e) {
+            setDeliveryError(e instanceof Error ? e.message : "Failed to start delivery");
+            setStartingDelivery(false);
+        }
+    };
 
     const customerId = user?.customerID;
 
@@ -209,12 +241,40 @@ const Checkout: React.FC = () => {
                                     </>
                                 )}
                             </div>
-                            <button
-                                onClick={() => navigate("/orders")}
-                                style={styles.successButton}
-                            >
-                                View My Orders
-                            </button>
+                            <div style={styles.addressBlock}>
+                                <label style={styles.label}>Delivery Address</label>
+                                <input
+                                    type="text"
+                                    value={address}
+                                    onChange={(e) => setAddress(e.target.value)}
+                                    placeholder="e.g. 1 Washington Sq, San Jose, CA 95192"
+                                    style={styles.addressInput}
+                                    disabled={startingDelivery}
+                                />
+                                {deliveryError && (
+                                    <div style={styles.errorMessage}>{deliveryError}</div>
+                                )}
+                                <button
+                                    onClick={startDelivery}
+                                    disabled={!address.trim() || startingDelivery}
+                                    style={{
+                                        ...styles.successButton,
+                                        opacity: !address.trim() || startingDelivery ? 0.6 : 1,
+                                        cursor:
+                                            !address.trim() || startingDelivery
+                                                ? "not-allowed"
+                                                : "pointer",
+                                    }}
+                                >
+                                    {startingDelivery ? "Starting..." : "Track Delivery"}
+                                </button>
+                                <button
+                                    onClick={() => navigate("/orders")}
+                                    style={styles.secondaryButton}
+                                >
+                                    Skip — View My Orders
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </main>
@@ -537,6 +597,33 @@ const styles: { [key: string]: React.CSSProperties } = {
         fontSize: "1rem",
         fontWeight: 600,
         cursor: "pointer",
+        width: "100%",
+        marginBottom: "0.75rem",
+    },
+    secondaryButton: {
+        backgroundColor: "transparent",
+        color: "#2d6a4f",
+        padding: "0.5rem 1rem",
+        border: "1px solid #2d6a4f",
+        borderRadius: "6px",
+        fontSize: "0.95rem",
+        fontWeight: 500,
+        cursor: "pointer",
+        width: "100%",
+    },
+    addressBlock: {
+        maxWidth: 420,
+        margin: "0 auto",
+        textAlign: "left",
+    },
+    addressInput: {
+        width: "100%",
+        padding: "0.75rem",
+        border: "1px solid #ced4da",
+        borderRadius: 6,
+        fontSize: "1rem",
+        marginBottom: "1rem",
+        boxSizing: "border-box",
     },
 };
 

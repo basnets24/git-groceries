@@ -1,13 +1,75 @@
+import itertools
 import os
+import time
 from datetime import datetime, timedelta
+from typing import Dict, Optional
 
 import mysql.connector
 
+from exceptions import ServiceError, ValidationError
 from integrations.google_maps.client import GoogleMapsClient, GoogleMapsConfig
 from .delivery_planner import can_add
 
 config = GoogleMapsConfig(api_key=os.getenv("GOOGLE_MAPS_API_KEY"))
 client = GoogleMapsClient(config)
+
+ROBOT_ORIGIN_ADDRESS = (
+    "San Jose State University Charles W. Davidson College of Engineering, "
+    "1 Washington Sq, San Jose, CA 95192"
+)
+SIMULATED_TRIP_DURATION_SEC = 60
+
+_TRIPS: Dict[int, Dict] = {}
+_TRIP_ID_SEQ = itertools.count(1)
+
+
+def start_simulated_delivery(order_id: int, address: str) -> Dict:
+    if not address or not address.strip():
+        raise ValidationError("Delivery address is required")
+
+    directions = client.get_directions(ROBOT_ORIGIN_ADDRESS, address.strip())
+    if directions.get("status") != "OK":
+        raise ServiceError(
+            f"Unable to compute delivery route ({directions.get('status')})"
+        )
+
+    trip_id = next(_TRIP_ID_SEQ)
+    _TRIPS[trip_id] = {
+        "order_id": order_id,
+        "start_time": time.time(),
+        "duration_sec": SIMULATED_TRIP_DURATION_SEC,
+        "origin": directions["origin"],
+        "destination": directions["destination"],
+    }
+
+    return {
+        "trip_id": trip_id,
+        "order_id": order_id,
+        "polyline": directions["encoded_polyline"],
+        "origin": directions["origin"],
+        "destination": directions["destination"],
+        "total_duration_sec": SIMULATED_TRIP_DURATION_SEC,
+        "real_duration_sec": directions["duration_sec"],
+        "distance_m": directions["distance_m"],
+    }
+
+
+def get_robot_status(trip_id: int) -> Optional[Dict]:
+    trip = _TRIPS.get(trip_id)
+    if not trip:
+        return None
+
+    elapsed = time.time() - trip["start_time"]
+    duration = trip["duration_sec"]
+    progress = max(0.0, min(1.0, elapsed / duration if duration > 0 else 1.0))
+    eta_sec = max(0, int(duration - elapsed))
+
+    return {
+        "trip_id": trip_id,
+        "progress": progress,
+        "eta_sec": eta_sec,
+        "finished": progress >= 1.0,
+    }
 
 def get_db():
     return mysql.connector.connect(

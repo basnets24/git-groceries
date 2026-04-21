@@ -91,6 +91,49 @@ class GoogleMapsClient:
             logger.error(f"Distance Matrix API error: {e}")
             return {"status": "ERROR", "error": str(e)}
 
+    def get_directions(self, origin: str, destination: str) -> Dict[str, Any]:
+        url = f"{self.config.base_url}/directions/json"
+        params = {
+            "origin": origin,
+            "destination": destination,
+            "departure_time": "now",
+            "key": self.config.api_key,
+        }
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get("status") == "OK" and data.get("routes"):
+                route = data["routes"][0]
+                leg = route["legs"][0]
+
+                duration_block = leg.get("duration_in_traffic", leg.get("duration", {}))
+                duration_sec = duration_block.get("value", 0) if isinstance(duration_block, dict) else 0
+                distance_m = leg.get("distance", {}).get("value", 0)
+
+                return {
+                    "status": "OK",
+                    "encoded_polyline": route["overview_polyline"]["points"],
+                    "duration_sec": duration_sec,
+                    "distance_m": distance_m,
+                    "origin": {
+                        "lat": leg["start_location"]["lat"],
+                        "lng": leg["start_location"]["lng"],
+                        "address": leg.get("start_address", origin),
+                    },
+                    "destination": {
+                        "lat": leg["end_location"]["lat"],
+                        "lng": leg["end_location"]["lng"],
+                        "address": leg.get("end_address", destination),
+                    },
+                }
+
+            return {"status": data.get("status", "UNKNOWN_ERROR")}
+        except Exception as e:
+            logger.error(f"Directions API error: {e}")
+            return {"status": "ERROR", "error": str(e)}
+
     def optimize_route(self, origin: str, waypoints: List[str], destination: Optional[str] = None) -> Dict[str, Any]:
         
         url = f"{self.config.base_url}/directions/json"

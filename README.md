@@ -26,3 +26,21 @@ External services live under `backend/integrations/`. Each provider gets its own
 - `integrations/stripe`: placeholder `StripeClient` for payment intents.
 
 Wire these into modules (checkout, delivery, etc.) once the concrete workflows are defined.
+
+## startup instructions
+spin up backend, database, and frontend containers through docker
+
+create stripe api key and paste into .env file
+[stripe link](https://dashboard.stripe.com)
+
+in .env, set STRIPE_API_KEY=secret key
+in frontend/.env REACT_APP_STRIPE_PUBLISHABLE_KEY = publishable key
+
+example card use: 4242 4242 4242
+any date, security number
+
+
+
+```
+docker compose up --build
+```
