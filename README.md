@@ -36,6 +36,8 @@ create stripe api key and paste into .env file
 in .env, set STRIPE_API_KEY=secret key
 in frontend/.env REACT_APP_STRIPE_PUBLISHABLE_KEY = publishable key
 
+make sure to add google_maps key in .env and frontend /.env
+
 example card use: 4242 4242 4242
 any date, security number
 

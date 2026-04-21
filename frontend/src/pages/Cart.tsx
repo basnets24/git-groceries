@@ -19,7 +19,9 @@ const Cart: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [items, setItems] = useState<CartItem[]>([]);
+  const [originalItems, setOriginalItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const customerId = user?.customerID;
@@ -49,6 +51,7 @@ const Cart: React.FC = () => {
       }
       const data = await response.json();
       setItems(data.items);
+      setOriginalItems(data.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -62,73 +65,76 @@ const Cart: React.FC = () => {
     }
   }, [authLoading, fetchCart]);
 
-  const handleQuantityChange = async (item: CartItem, delta: number) => {
+  const handleQuantityChange = (item: CartItem, delta: number) => {
     const newQty = item.quantity + delta;
+    if (newQty < 0) return;
 
-    // Prevent going below 0
-    if (newQty < 0) {
-      return;
-    }
-
-    const token = localStorage.getItem("token");
-    if (!token) {
-      return;
-    }
-
-    try {
-      // Send the delta (change amount), not the absolute quantity
-      const response = await fetch(`/api/cart/${customerId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ product_id: item.product_id, quantity: delta }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to update cart");
-      }
-
-      // Update local state with the new quantity
-      setItems((prevItems) =>
-        prevItems
-          .map((i) =>
-            i.product_id === item.product_id ? { ...i, quantity: newQty } : i
-          )
-          .filter((i) => i.quantity > 0) // Remove items with quantity 0
-      );
-    } catch (err) {
-      console.error(err);
-    }
+    setItems((prevItems) =>
+      prevItems
+        .map((i) =>
+          i.product_id === item.product_id ? { ...i, quantity: newQty } : i
+        )
+        .filter((i) => i.quantity > 0)
+    );
   };
 
-  const handleRemoveItem = async (item: CartItem) => {
+  const handleRemoveItem = (item: CartItem) => {
+    setItems((prevItems) =>
+      prevItems.filter((i) => i.product_id !== item.product_id)
+    );
+  };
+
+  const pendingDeltas = (): Array<{ product_id: number; delta: number }> => {
+    const origMap: Record<number, number> = {};
+    originalItems.forEach((i) => { origMap[i.product_id] = i.quantity; });
+    const currMap: Record<number, number> = {};
+    items.forEach((i) => { currMap[i.product_id] = i.quantity; });
+
+    const deltas: Array<{ product_id: number; delta: number }> = [];
+    Object.keys(currMap).forEach((key) => {
+      const pid = Number(key);
+      const origQty = origMap[pid] ?? 0;
+      const currQty = currMap[pid];
+      if (currQty !== origQty) deltas.push({ product_id: pid, delta: currQty - origQty });
+    });
+    Object.keys(origMap).forEach((key) => {
+      const pid = Number(key);
+      if (!(pid in currMap)) deltas.push({ product_id: pid, delta: -origMap[pid] });
+    });
+    return deltas;
+  };
+
+  const hasChanges = pendingDeltas().length > 0;
+
+  const handleDiscard = () => {
+    setItems(originalItems);
+  };
+
+  const handleConfirm = async () => {
+    const deltas = pendingDeltas();
+    if (deltas.length === 0) return;
+
     const token = localStorage.getItem("token");
-    if (!token) {
-      return;
-    }
+    if (!token) return;
 
+    setSaving(true);
     try {
-      const response = await fetch(`/api/cart/${customerId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ product_id: item.product_id, quantity: -item.quantity }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to remove item from cart");
+      for (const { product_id, delta } of deltas) {
+        const response = await fetch(`/api/cart/${customerId}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ product_id, quantity: delta }),
+        });
+        if (!response.ok) throw new Error("Failed to update cart");
       }
-
-      // remove item
-      setItems((prevItems) =>
-        prevItems.filter((i) => i.product_id !== item.product_id)
-      );
+      await fetchCart();
     } catch (err) {
-      console.error(err);
+      setError(err instanceof Error ? err.message : "Failed to save changes");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -279,12 +285,44 @@ const Cart: React.FC = () => {
                   <span style={styles.totalLabelBold}>Total</span>
                   <span style={styles.totalValueBold}>${total.toFixed(2)}</span>
                 </div>
-                <button
-                  onClick={() => navigate("/checkout")}
-                  style={styles.checkoutButton}
-                >
-                  Proceed to Checkout
-                </button>
+                {hasChanges && (
+                  <div style={styles.pendingBanner}>
+                    You have unsaved changes. Confirm to update your cart.
+                  </div>
+                )}
+                {hasChanges ? (
+                  <div style={styles.actionRow}>
+                    <button
+                      onClick={handleDiscard}
+                      disabled={saving}
+                      style={{
+                        ...styles.discardButton,
+                        opacity: saving ? 0.6 : 1,
+                        cursor: saving ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      Discard
+                    </button>
+                    <button
+                      onClick={handleConfirm}
+                      disabled={saving}
+                      style={{
+                        ...styles.confirmButton,
+                        opacity: saving ? 0.6 : 1,
+                        cursor: saving ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {saving ? "Saving..." : "Confirm Changes"}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => navigate("/checkout")}
+                    style={styles.checkoutButton}
+                  >
+                    Proceed to Checkout
+                  </button>
+                )}
               </div>
 
               <div style={styles.deliverySection}>
@@ -473,6 +511,43 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "1.1rem",
     fontWeight: 600,
     cursor: "pointer",
+    transition: "background-color 0.2s",
+  },
+  pendingBanner: {
+    marginTop: "1rem",
+    padding: "0.75rem 1rem",
+    backgroundColor: "#fff3cd",
+    color: "#856404",
+    borderRadius: "6px",
+    fontSize: "0.9rem",
+    fontWeight: 500,
+    textAlign: "center",
+  },
+  actionRow: {
+    display: "flex",
+    gap: "0.75rem",
+    marginTop: "1rem",
+  },
+  confirmButton: {
+    flex: 1,
+    backgroundColor: "#2d6a4f",
+    color: "#ffffff",
+    padding: "1rem",
+    border: "none",
+    borderRadius: "6px",
+    fontSize: "1.1rem",
+    fontWeight: 600,
+    transition: "background-color 0.2s",
+  },
+  discardButton: {
+    flex: 1,
+    backgroundColor: "#e9ecef",
+    color: "#495057",
+    padding: "1rem",
+    border: "none",
+    borderRadius: "6px",
+    fontSize: "1.1rem",
+    fontWeight: 600,
     transition: "background-color 0.2s",
   },
   deliverySection: {
