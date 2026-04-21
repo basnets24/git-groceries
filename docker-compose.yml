@@ -32,6 +32,7 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       JWT_SECRET: ${JWT_SECRET}
       STRIPE_API_KEY: ${STRIPE_API_KEY}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
 
   frontend:
     build: ./frontend
@@ -45,6 +46,7 @@ services:
     environment:
       - HOST=0.0.0.0
       - WATCHPACK_POLLING=true
+      - REACT_APP_GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
 
   apache:
     build: ./apache

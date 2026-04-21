@@ -23,7 +23,7 @@ _TRIPS: Dict[int, Dict] = {}
 _TRIP_ID_SEQ = itertools.count(1)
 
 
-def start_simulated_delivery(order_id: int, address: str) -> Dict:
+def start_simulated_delivery(order_id: int, address: str, customer_id: Optional[int] = None) -> Dict:
     if not address or not address.strip():
         raise ValidationError("Delivery address is required")
 
@@ -36,10 +36,14 @@ def start_simulated_delivery(order_id: int, address: str) -> Dict:
     trip_id = next(_TRIP_ID_SEQ)
     _TRIPS[trip_id] = {
         "order_id": order_id,
+        "customer_id": customer_id,
         "start_time": time.time(),
         "duration_sec": SIMULATED_TRIP_DURATION_SEC,
         "origin": directions["origin"],
         "destination": directions["destination"],
+        "encoded_polyline": directions["encoded_polyline"],
+        "real_duration_sec": directions["duration_sec"],
+        "distance_m": directions["distance_m"],
     }
 
     return {
@@ -52,6 +56,33 @@ def start_simulated_delivery(order_id: int, address: str) -> Dict:
         "real_duration_sec": directions["duration_sec"],
         "distance_m": directions["distance_m"],
     }
+
+
+def list_deliveries_for_customer(customer_id: int) -> list:
+    now = time.time()
+    trips = []
+    for trip_id, trip in _TRIPS.items():
+        if trip.get("customer_id") != customer_id:
+            continue
+        elapsed = now - trip["start_time"]
+        duration = trip["duration_sec"]
+        progress = max(0.0, min(1.0, elapsed / duration if duration > 0 else 1.0))
+        trips.append({
+            "trip_id": trip_id,
+            "order_id": trip["order_id"],
+            "polyline": trip["encoded_polyline"],
+            "origin": trip["origin"],
+            "destination": trip["destination"],
+            "total_duration_sec": duration,
+            "real_duration_sec": trip["real_duration_sec"],
+            "distance_m": trip["distance_m"],
+            "progress": progress,
+            "eta_sec": max(0, int(duration - elapsed)),
+            "finished": progress >= 1.0,
+            "started_at": trip["start_time"],
+        })
+    trips.sort(key=lambda t: t["started_at"], reverse=True)
+    return trips
 
 
 def get_robot_status(trip_id: int) -> Optional[Dict]:

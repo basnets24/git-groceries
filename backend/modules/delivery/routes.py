@@ -1,5 +1,6 @@
-from flask import jsonify, request
+from flask import g, jsonify, request
 
+from exceptions import AuthError
 from modules.auth.decorators import auth_required, roles_required
 from models.user import UserRole
 
@@ -26,8 +27,23 @@ def start_delivery():
     if not order_id or not address:
         return jsonify({"error": "order_id and address are required"}), 400
 
-    result = services.start_simulated_delivery(int(order_id), str(address))
+    auth_payload = getattr(g, "auth_payload", None) or {}
+    customer_id = auth_payload.get("customerID")
+
+    result = services.start_simulated_delivery(
+        int(order_id), str(address), customer_id=customer_id
+    )
     return jsonify(result), 201
+
+
+@delivery_bp.route("/api/delivery/mine", methods=["GET"])
+@auth_required
+def list_my_deliveries():
+    auth_payload = getattr(g, "auth_payload", None) or {}
+    customer_id = auth_payload.get("customerID")
+    if customer_id is None:
+        raise AuthError("Missing customer identity in token", 401)
+    return jsonify({"trips": services.list_deliveries_for_customer(customer_id)}), 200
 
 
 @delivery_bp.route("/api/delivery/<int:trip_id>/status", methods=["GET"])
