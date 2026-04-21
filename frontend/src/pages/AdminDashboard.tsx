@@ -28,10 +28,10 @@ const tiles: AdminTile[] = [
     },
     {
         title: "Orders Queue",
-        description: "Monitor open orders, update fulfillment steps, and coordinate with checkout/payments.",
-        to: "/orders",
+        description: "Review every order, inspect line items, and see the route each delivery took.",
+        to: "/admin/orders",
         cta: "View Orders",
-        status: "Coming soon",
+        status: "Live",
     },
     {
         title: "Payment Center",

@@ -2,6 +2,7 @@ from flask import Flask
 from flask_cors import CORS
 
 from exceptions import register_error_handlers
+from modules.admin import admin_bp
 from modules.auth.routes import auth_bp
 from modules.cart.routes import cart_bp
 from modules.checkout import checkout_bp
@@ -29,6 +30,7 @@ app.register_blueprint(checkout_bp)
 app.register_blueprint(payment_bp)
 app.register_blueprint(delivery_bp)
 app.register_blueprint(orders_bp)
+app.register_blueprint(admin_bp)
 
 
 if __name__ == "__main__":

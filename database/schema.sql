@@ -90,9 +90,19 @@ CREATE TABLE Payment (
 -- tables should be structured...
 
 CREATE TABLE DeliveryTrip (
-    DeliveryTripID  INT AUTO_INCREMENT PRIMARY KEY,
+    DeliveryTripID      INT AUTO_INCREMENT PRIMARY KEY,
 
-    Status  ENUM('NOTSTARTED', 'INPROGRESS','COMPLETED','ERROR') NOT NULL DEFAULT 'NOTSTARTED'
+    Status              ENUM('NOTSTARTED', 'INPROGRESS','COMPLETED','ERROR') NOT NULL DEFAULT 'NOTSTARTED',
+    Polyline            TEXT,
+    OriginAddress       VARCHAR(255),
+    DestinationAddress  VARCHAR(255),
+    OriginLat           DECIMAL(10,7),
+    OriginLng           DECIMAL(10,7),
+    DestLat             DECIMAL(10,7),
+    DestLng             DECIMAL(10,7),
+    DistanceM           INT,
+    DurationSec         INT,
+    StartedAt           DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE TripStop (

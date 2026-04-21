@@ -15,6 +15,8 @@ import Inventory from "./pages/Inventory";
 import DeliveryBots from "./pages/DeliveryBots";
 import TrackDelivery from "./pages/TrackDelivery";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminOrders from "./pages/AdminOrders";
+import AdminOrderDetail from "./pages/AdminOrderDetail";
 import CustomerProfile from "./pages/CustomerProfile";
 import { AuthProvider } from "./context/AuthContext";
 
@@ -39,6 +41,8 @@ function App() {
           <Route path="/track/:tripId" element={<TrackDelivery />} />
           <Route path="/profile" element={<CustomerProfile />} />
           <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/orders" element={<AdminOrders />} />
+          <Route path="/admin/orders/:orderId" element={<AdminOrderDetail />} />
 
           {/* Hidden employee routes - not linked in navbar */}
           <Route path="/employee/inventory" element={<Inventory />} />

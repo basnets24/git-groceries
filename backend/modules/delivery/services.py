@@ -33,14 +33,30 @@ def start_simulated_delivery(order_id: int, address: str, customer_id: Optional[
             f"Unable to compute delivery route ({directions.get('status')})"
         )
 
-    trip_id = next(_TRIP_ID_SEQ)
+    origin = directions["origin"]
+    destination = directions["destination"]
+
+    db_trip_id = _persist_trip(
+        order_id=order_id,
+        polyline=directions["encoded_polyline"],
+        origin_address=ROBOT_ORIGIN_ADDRESS,
+        dest_address=address.strip(),
+        origin_lat=origin.get("lat"),
+        origin_lng=origin.get("lng"),
+        dest_lat=destination.get("lat"),
+        dest_lng=destination.get("lng"),
+        distance_m=directions["distance_m"],
+        duration_sec=directions["duration_sec"],
+    )
+
+    trip_id = db_trip_id if db_trip_id is not None else next(_TRIP_ID_SEQ)
     _TRIPS[trip_id] = {
         "order_id": order_id,
         "customer_id": customer_id,
         "start_time": time.time(),
         "duration_sec": SIMULATED_TRIP_DURATION_SEC,
-        "origin": directions["origin"],
-        "destination": directions["destination"],
+        "origin": origin,
+        "destination": destination,
         "encoded_polyline": directions["encoded_polyline"],
         "real_duration_sec": directions["duration_sec"],
         "distance_m": directions["distance_m"],
@@ -50,12 +66,65 @@ def start_simulated_delivery(order_id: int, address: str, customer_id: Optional[
         "trip_id": trip_id,
         "order_id": order_id,
         "polyline": directions["encoded_polyline"],
-        "origin": directions["origin"],
-        "destination": directions["destination"],
+        "origin": origin,
+        "destination": destination,
         "total_duration_sec": SIMULATED_TRIP_DURATION_SEC,
         "real_duration_sec": directions["duration_sec"],
         "distance_m": directions["distance_m"],
     }
+
+
+def _persist_trip(
+    order_id: int,
+    polyline: str,
+    origin_address: str,
+    dest_address: str,
+    origin_lat: Optional[float],
+    origin_lng: Optional[float],
+    dest_lat: Optional[float],
+    dest_lng: Optional[float],
+    distance_m: int,
+    duration_sec: int,
+) -> Optional[int]:
+    """Insert a DeliveryTrip + TripStop row. Returns the new trip id, or None on failure."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO DeliveryTrip (
+                Status, Polyline,
+                OriginAddress, DestinationAddress,
+                OriginLat, OriginLng, DestLat, DestLng,
+                DistanceM, DurationSec
+            ) VALUES ('INPROGRESS', %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                polyline,
+                origin_address,
+                dest_address,
+                origin_lat,
+                origin_lng,
+                dest_lat,
+                dest_lng,
+                distance_m,
+                duration_sec,
+            ),
+        )
+        trip_id = cursor.lastrowid
+        cursor.execute(
+            """
+            INSERT INTO TripStop (DeliveryTripID, ShoppingOrderID, StopIndex, ETA)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (trip_id, order_id, 0, datetime.now() + timedelta(seconds=duration_sec)),
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return trip_id
+    except Exception:
+        return None
 
 
 def list_deliveries_for_customer(customer_id: int) -> list:
@@ -161,12 +230,6 @@ def dispatch_orders():
 
     for trip_orders, trip_weight in trips:
 
-        cursor.execute("""
-            INSERT INTO DeliveryTrip (Status)
-            VALUES ('INPROGRESS')
-        """)
-        trip_id = cursor.lastrowid
-
         addresses = [o["address"] for o in trip_orders]
 
         origin = addresses[0]
@@ -177,6 +240,24 @@ def dispatch_orders():
 
         if route.get("status") != "OK":
             continue
+
+        total_distance_m = sum(leg.get("distance", {}).get("value", 0) for leg in route.get("legs", []))
+        total_duration_sec = sum(leg.get("duration", {}).get("value", 0) for leg in route.get("legs", []))
+
+        cursor.execute("""
+            INSERT INTO DeliveryTrip (
+                Status, Polyline, OriginAddress, DestinationAddress,
+                DistanceM, DurationSec
+            )
+            VALUES ('INPROGRESS', %s, %s, %s, %s, %s)
+        """, (
+            route.get("overview_polyline"),
+            origin,
+            destination,
+            total_distance_m,
+            total_duration_sec,
+        ))
+        trip_id = cursor.lastrowid
 
         legs = route.get("legs", [])
         now = datetime.now()

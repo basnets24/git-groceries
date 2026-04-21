@@ -177,7 +177,8 @@ class GoogleMapsClient:
                     "waypoint_order": waypoint_order,
                     "total_duration_mins": total_duration // 60,
                     "total_distance_meters": total_distance,
-                    "legs": route["legs"]
+                    "legs": route["legs"],
+                    "overview_polyline": route.get("overview_polyline", {}).get("points"),
                 }
             
             return {"status": data.get("status", "UNKNOWN_ERROR")}
