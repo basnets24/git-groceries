@@ -19,10 +19,9 @@ const Cart: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [items, setItems] = useState<CartItem[]>([]);
-  const [originalItems, setOriginalItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingUpdates, setPendingUpdates] = useState<Set<number>>(new Set());
 
   const customerId = user?.customerID;
 
@@ -51,7 +50,6 @@ const Cart: React.FC = () => {
       }
       const data = await response.json();
       setItems(data.items);
-      setOriginalItems(data.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -65,76 +63,116 @@ const Cart: React.FC = () => {
     }
   }, [authLoading, fetchCart]);
 
-  const handleQuantityChange = (item: CartItem, delta: number) => {
-    const newQty = item.quantity + delta;
-    if (newQty < 0) return;
+  const handleQuantityChange = async (item: CartItem, delta: number) => {
+    const currentQty = item.quantity;
+    const newQty = currentQty + delta;
 
-    setItems((prevItems) =>
-      prevItems
-        .map((i) =>
-          i.product_id === item.product_id ? { ...i, quantity: newQty } : i
-        )
-        .filter((i) => i.quantity > 0)
-    );
-  };
+    // Prevent going below 0
+    if (newQty < 0) {
+      return;
+    }
 
-  const handleRemoveItem = (item: CartItem) => {
-    setItems((prevItems) =>
-      prevItems.filter((i) => i.product_id !== item.product_id)
-    );
-  };
+    // Don't allow updates if already pending
+    if (pendingUpdates.has(item.product_id)) {
+      return;
+    }
 
-  const pendingDeltas = (): Array<{ product_id: number; delta: number }> => {
-    const origMap: Record<number, number> = {};
-    originalItems.forEach((i) => { origMap[i.product_id] = i.quantity; });
-    const currMap: Record<number, number> = {};
-    items.forEach((i) => { currMap[i.product_id] = i.quantity; });
-
-    const deltas: Array<{ product_id: number; delta: number }> = [];
-    Object.keys(currMap).forEach((key) => {
-      const pid = Number(key);
-      const origQty = origMap[pid] ?? 0;
-      const currQty = currMap[pid];
-      if (currQty !== origQty) deltas.push({ product_id: pid, delta: currQty - origQty });
-    });
-    Object.keys(origMap).forEach((key) => {
-      const pid = Number(key);
-      if (!(pid in currMap)) deltas.push({ product_id: pid, delta: -origMap[pid] });
-    });
-    return deltas;
-  };
-
-  const hasChanges = pendingDeltas().length > 0;
-
-  const handleDiscard = () => {
-    setItems(originalItems);
-  };
-
-  const handleConfirm = async () => {
-    const deltas = pendingDeltas();
-    if (deltas.length === 0) return;
+    if (!user) {
+      return;
+    }
 
     const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!token) {
+      return;
+    }
 
-    setSaving(true);
+    // Mark this product as pending
+    setPendingUpdates((prev) => new Set(prev).add(item.product_id));
+
     try {
-      for (const { product_id, delta } of deltas) {
-        const response = await fetch(`/api/cart/${customerId}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ product_id, quantity: delta }),
-        });
-        if (!response.ok) throw new Error("Failed to update cart");
+      // Send the delta (change amount), not the absolute quantity
+      // The backend will add this to the existing quantity
+      const response = await fetch(`/api/cart/${user.customerID}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ product_id: item.product_id, quantity: delta }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Failed to update cart");
       }
-      await fetchCart();
+
+      // Update local state with the new absolute quantity
+      setItems((prevItems) =>
+        prevItems
+          .map((i) =>
+            i.product_id === item.product_id ? { ...i, quantity: newQty } : i
+          )
+          .filter((i) => i.quantity > 0)
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save changes");
+      console.error(err);
     } finally {
-      setSaving(false);
+      // Clear pending state
+      setPendingUpdates((prev) => {
+        const next = new Set(prev);
+        next.delete(item.product_id);
+        return next;
+      });
+    }
+  };
+
+  const handleRemoveItem = async (item: CartItem) => {
+    // Don't allow updates if already pending
+    if (pendingUpdates.has(item.product_id)) {
+      return;
+    }
+
+    if (!user) {
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      return;
+    }
+
+    // Mark this product as pending
+    setPendingUpdates((prev) => new Set(prev).add(item.product_id));
+
+    try {
+      // Remove all quantity of this item (set to 0)
+      const response = await fetch(`/api/cart/${user.customerID}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ product_id: item.product_id, quantity: -item.quantity }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Failed to remove item");
+      }
+
+      // Remove item from local state
+      setItems((prevItems) =>
+        prevItems.filter((i) => i.product_id !== item.product_id)
+      );
+    } catch (err) {
+      console.error(err);
+    } finally {
+      // Clear pending state
+      setPendingUpdates((prev) => {
+        const next = new Set(prev);
+        next.delete(item.product_id);
+        return next;
+      });
     }
   };
 
@@ -224,10 +262,10 @@ const Cart: React.FC = () => {
                               onClick={() => handleQuantityChange(item, -1)}
                               style={{
                                 ...styles.quantityButton,
-                                opacity: item.quantity === 0 ? 0.5 : 1,
-                                cursor: item.quantity === 0 ? "not-allowed" : "pointer",
+                                opacity: item.quantity === 0 || pendingUpdates.has(item.product_id) ? 0.5 : 1,
+                                cursor: item.quantity === 0 || pendingUpdates.has(item.product_id) ? "not-allowed" : "pointer",
                               }}
-                              disabled={item.quantity === 0}
+                              disabled={item.quantity === 0 || pendingUpdates.has(item.product_id)}
                             >
                               -
                             </button>
@@ -236,7 +274,12 @@ const Cart: React.FC = () => {
                             </span>
                             <button
                               onClick={() => handleQuantityChange(item, 1)}
-                              style={styles.quantityButton}
+                              style={{
+                                ...styles.quantityButton,
+                                opacity: pendingUpdates.has(item.product_id) ? 0.5 : 1,
+                                cursor: pendingUpdates.has(item.product_id) ? "not-allowed" : "pointer",
+                              }}
+                              disabled={pendingUpdates.has(item.product_id)}
                             >
                               +
                             </button>
@@ -285,44 +328,12 @@ const Cart: React.FC = () => {
                   <span style={styles.totalLabelBold}>Total</span>
                   <span style={styles.totalValueBold}>${total.toFixed(2)}</span>
                 </div>
-                {hasChanges && (
-                  <div style={styles.pendingBanner}>
-                    You have unsaved changes. Confirm to update your cart.
-                  </div>
-                )}
-                {hasChanges ? (
-                  <div style={styles.actionRow}>
-                    <button
-                      onClick={handleDiscard}
-                      disabled={saving}
-                      style={{
-                        ...styles.discardButton,
-                        opacity: saving ? 0.6 : 1,
-                        cursor: saving ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      Discard
-                    </button>
-                    <button
-                      onClick={handleConfirm}
-                      disabled={saving}
-                      style={{
-                        ...styles.confirmButton,
-                        opacity: saving ? 0.6 : 1,
-                        cursor: saving ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      {saving ? "Saving..." : "Confirm Changes"}
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => navigate("/checkout")}
-                    style={styles.checkoutButton}
-                  >
-                    Proceed to Checkout
-                  </button>
-                )}
+                <button
+                  onClick={() => navigate("/checkout")}
+                  style={styles.checkoutButton}
+                >
+                  Proceed to Checkout
+                </button>
               </div>
 
               <div style={styles.deliverySection}>
@@ -511,43 +522,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "1.1rem",
     fontWeight: 600,
     cursor: "pointer",
-    transition: "background-color 0.2s",
-  },
-  pendingBanner: {
-    marginTop: "1rem",
-    padding: "0.75rem 1rem",
-    backgroundColor: "#fff3cd",
-    color: "#856404",
-    borderRadius: "6px",
-    fontSize: "0.9rem",
-    fontWeight: 500,
-    textAlign: "center",
-  },
-  actionRow: {
-    display: "flex",
-    gap: "0.75rem",
-    marginTop: "1rem",
-  },
-  confirmButton: {
-    flex: 1,
-    backgroundColor: "#2d6a4f",
-    color: "#ffffff",
-    padding: "1rem",
-    border: "none",
-    borderRadius: "6px",
-    fontSize: "1.1rem",
-    fontWeight: 600,
-    transition: "background-color 0.2s",
-  },
-  discardButton: {
-    flex: 1,
-    backgroundColor: "#e9ecef",
-    color: "#495057",
-    padding: "1rem",
-    border: "none",
-    borderRadius: "6px",
-    fontSize: "1.1rem",
-    fontWeight: 600,
     transition: "background-color 0.2s",
   },
   deliverySection: {

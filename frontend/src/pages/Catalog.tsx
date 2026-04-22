@@ -32,6 +32,7 @@ const Catalog: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [quantities, setQuantities] = useState<{ [key: number]: number }>({});
+  const [pendingUpdates, setPendingUpdates] = useState<Set<number>>(new Set());
   const [sortField, setSortField] = useState<"price" | "name" | "weight">("price");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
@@ -197,6 +198,11 @@ const Catalog: React.FC = () => {
       return;
     }
 
+    // Don't allow updates if already pending
+    if (pendingUpdates.has(product.id)) {
+      return;
+    }
+
     if (!user) {
       return;
     }
@@ -205,6 +211,9 @@ const Catalog: React.FC = () => {
     if (!token) {
       return;
     }
+
+    // Mark this product as pending
+    setPendingUpdates((prev) => new Set(prev).add(product.id));
 
     try {
       // Send the delta (change amount), not the absolute quantity
@@ -230,6 +239,13 @@ const Catalog: React.FC = () => {
       }));
     } catch (err) {
       console.error(err);
+    } finally {
+      // Clear pending state
+      setPendingUpdates((prev) => {
+        const next = new Set(prev);
+        next.delete(product.id);
+        return next;
+      });
     }
   };
 
@@ -434,10 +450,10 @@ const Catalog: React.FC = () => {
                           onClick={() => handleQuantityChange(product, -1)}
                           style={{
                             ...styles.quantityButton,
-                            opacity: quantities[product.id] === 0 ? 0.5 : 1,
-                            cursor: quantities[product.id] === 0 ? "not-allowed" : "pointer",
+                            opacity: quantities[product.id] === 0 || pendingUpdates.has(product.id) ? 0.5 : 1,
+                            cursor: quantities[product.id] === 0 || pendingUpdates.has(product.id) ? "not-allowed" : "pointer",
                           }}
-                          disabled={quantities[product.id] === 0}
+                          disabled={quantities[product.id] === 0 || pendingUpdates.has(product.id)}
                         >
                           -
                         </button>
@@ -448,10 +464,10 @@ const Catalog: React.FC = () => {
                           onClick={() => handleQuantityChange(product, 1)}
                           style={{
                             ...styles.quantityButton,
-                            opacity: (quantities[product.id] || 0) >= product.quantityInStock ? 0.5 : 1,
-                            cursor: (quantities[product.id] || 0) >= product.quantityInStock ? "not-allowed" : "pointer",
+                            opacity: (quantities[product.id] || 0) >= product.quantityInStock || pendingUpdates.has(product.id) ? 0.5 : 1,
+                            cursor: (quantities[product.id] || 0) >= product.quantityInStock || pendingUpdates.has(product.id) ? "not-allowed" : "pointer",
                           }}
-                          disabled={(quantities[product.id] || 0) >= product.quantityInStock}
+                          disabled={(quantities[product.id] || 0) >= product.quantityInStock || pendingUpdates.has(product.id)}
                         >
                           +
                         </button>
