@@ -16,35 +16,35 @@ VALUES
     ('Bakery'),
     ('Beverages');
 
-INSERT INTO Product (Name, Price, WeightLbs, ProductCategoryID, isActive)
+INSERT INTO Product (Name, Price, WeightLbs, ProductCategoryID, ImageURL, isActive)
 VALUES
     -- Fresh Produce
-    ('Bananas Bunch', 1.99, 2.50, 1, TRUE),
-    ('Gala Apples Bag', 4.99, 3.00, 1, TRUE),
-    ('Broccoli Crown', 2.49, 0.75, 1, TRUE),
-    ('Roma Tomatoes Pack', 3.49, 1.50, 1, TRUE),
+    ('Bananas Bunch', 1.99, 2.50, 1, '/images/banana-bunch.jpg', TRUE),
+    ('Gala Apples Bag', 4.99, 3.00, 1, '/images/gala-apples.jpg', TRUE),
+    ('Broccoli Crown', 2.49, 0.75, 1, '/images/broccoli-crown.jpg', TRUE),
+    ('Roma Tomatoes Pack', 3.49, 1.50, 1, '/images/roma-tomatoes.jpg', TRUE),
 
     -- Deli Meats
-    ('Sliced Turkey Breast', 7.99, 1.00, 2, TRUE),
-    ('Honey Ham', 6.99, 1.00, 2, TRUE),
-    ('Roast Beef Deli Meat', 8.99, 1.00, 2, TRUE),
+    ('Sliced Turkey Breast', 7.99, 1.00, 2, '/images/sliced-turkey.jpg', TRUE),
+    ('Honey Ham', 6.99, 1.00, 2, '/images/honey-ham.jpg', TRUE),
+    ('Roast Beef Deli Meat', 8.99, 1.00, 2, '/images/roast-beef.jpg', TRUE),
 
     -- Dairy
-    ('Sliced American Cheese Pack', 3.99, 0.50, 3, TRUE),
-    ('Whole Milk Gallon', 4.49, 8.60, 3, TRUE),
-    ('Large Eggs Dozen', 3.29, 1.50, 3, TRUE),
+    ('Sliced American Cheese Pack', 3.99, 0.50, 3, '/images/american-cheese.jpg', TRUE),
+    ('Whole Milk Gallon', 4.49, 8.60, 3, '/images/milk.jpg', TRUE),
+    ('Large Eggs Dozen', 3.29, 1.50, 3, '/images/eggs.jpg', TRUE),
 
     -- Bakery
-    ('Blueberry Muffins (8 count)', 7.99, 1.95, 4, TRUE),
-    ('Multigrain Sandwich Bread Loaf', 6.99, 1.45, 4, TRUE),
-    ('Sourdough Loaf', 5.85, 1.35, 4, TRUE),
-    ('Chocolate Chip Cookies (10 count)', 7.99, 0.75, 4, TRUE),
+    ('Blueberry Muffins (8 count)', 7.99, 1.95, 4, '/images/blueberry-muffins.jpg', TRUE),
+    ('Multigrain Sandwich Bread Loaf', 6.99, 1.45, 4, '/images/multigrain-loaf.jpg', TRUE),
+    ('Sourdough Loaf', 5.85, 1.35, 4, '/images/sourdough.jpg', TRUE),
+    ('Chocolate Chip Cookies (10 count)', 7.99, 0.75, 4, '/images/cookies.jpg', TRUE),
 
     -- Beverages
-    ('Orange Soda', 2.49, 0.75, 5, TRUE),
-    ('Pepsi Soda', 2.49, 0.75, 5, FALSE),
-    ('Coke Soda', 2.49, 0.75, 5, TRUE),
-    ('Apple Juice', 7.85, 8.30, 5, TRUE);
+    ('Orange Soda', 2.49, 0.75, 5, '/images/orange-soda.jpg', TRUE),
+    ('Pepsi Soda', 2.49, 0.75, 5, '/images/pepsi.jpg', FALSE),
+    ('Coke Soda', 2.49, 0.75, 5, '/images/coca-cola.jpg', TRUE),
+    ('Apple Juice', 7.85, 8.30, 5, '/images/apple-juice.jpg', TRUE);
 
 INSERT INTO Inventory (ProductID, QuantityInStock, ReservedQty)
 VALUES

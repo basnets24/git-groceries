@@ -43,12 +43,14 @@ def create_product():
         raise ValidationError("Invalid category_id")
 
     initial_qty = data.get("quantity", 0)
+    image_url = data.get("image_url")
     product = services.create_product(
         name=data["name"],
         price=data["price"],
         weight=data["weight"],
         category_id=data["category_id"],
         quantity=initial_qty,
+        image_url=image_url,
     )
     return jsonify({"product": product}), 201
 

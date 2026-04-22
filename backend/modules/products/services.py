@@ -20,7 +20,6 @@ def get_products(
         product["price"] = float(product["price"])
         product["weight"] = float(product["weight"])
         product["quantityInStock"] = int(product["quantityInStock"])
-        product["image"] = ""
         product["description"] = ""
     return products
 
@@ -35,8 +34,9 @@ def create_product(
     weight: float,
     category_id: int,
     quantity: int,
+    image_url: Optional[str] = None,
 ) -> Optional[Dict]:
-    product_id = repository.insert_product(name, price, weight, category_id)
+    product_id = repository.insert_product(name, price, weight, category_id, image_url)
     repository.insert_inventory_item(product_id, quantity)
     product = repository.fetch_product_by_id(product_id)
     if product is None:

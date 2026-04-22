@@ -20,6 +20,7 @@ CREATE TABLE Product (
     Price               DECIMAL(7,2)  NOT NULL,
     WeightLbs           DECIMAL(7,2)  NOT NULL, 
     ProductCategoryID   INT           NOT NULL,
+    ImageURL            VARCHAR(255)  NULL,
     IsActive            BOOLEAN       NOT NULL DEFAULT TRUE, 
 
     FOREIGN KEY (ProductCategoryID) REFERENCES ProductCategory(ProductCategoryID)

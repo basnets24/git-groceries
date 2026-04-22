@@ -61,6 +61,7 @@ def fetch_active_products(
            p.Price        AS price,
            p.WeightLbs    AS weight,
            pc.Name        AS category,
+           p.ImageURL     AS image,
            p.IsActive     AS active,
            COALESCE(i.QuantityInStock, 0) AS quantityInStock
     FROM Product p
@@ -90,15 +91,15 @@ def category_exists(category_id: int) -> bool:
     return row is not None
 
 
-def insert_product(name: str, price: float, weight: float, category_id: int) -> int:
+def insert_product(name: str, price: float, weight: float, category_id: int, image_url: Optional[str] = None) -> int:
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
         """
-        INSERT INTO Product (Name, Price, WeightLbs, ProductCategoryID, IsActive)
-        VALUES (%s, %s, %s, %s, TRUE)
+        INSERT INTO Product (Name, Price, WeightLbs, ProductCategoryID, ImageURL, IsActive)
+        VALUES (%s, %s, %s, %s, %s, TRUE)
         """,
-        (name, price, weight, category_id),
+        (name, price, weight, category_id, image_url),
     )
     conn.commit()
     product_id = cursor.lastrowid
@@ -139,7 +140,7 @@ def fetch_product_by_id(product_id: int) -> Optional[Dict]:
     cursor.execute(
         """
         SELECT p.ProductID AS id, p.Name AS name, p.Price AS price,
-               p.WeightLbs AS weight, pc.Name AS category
+               p.WeightLbs AS weight, pc.Name AS category, p.ImageURL AS image
         FROM Product p
         JOIN ProductCategory pc ON p.ProductCategoryID = pc.ProductCategoryID
         WHERE p.ProductID = %s
