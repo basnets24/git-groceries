@@ -45,6 +45,8 @@ const Inventory: React.FC = () => {
   const [addForm, setAddForm] = useState<AddForm>(EMPTY_ADD_FORM);
   const [addError, setAddError] = useState<string | null>(null);
   const [addSaving, setAddSaving] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const token = () => localStorage.getItem("token");
 
@@ -129,7 +131,19 @@ const Inventory: React.FC = () => {
       category_id: cats[0] ? String(cats[0].id) : "",
     });
     setAddError(null);
+    setImageFile(null);
+    setImagePreview(null);
     setShowAddModal(true);
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setImageFile(file);
+    if (file) {
+      setImagePreview(URL.createObjectURL(file));
+    } else {
+      setImagePreview(null);
+    }
   };
 
   const handleAddProduct = async (e: React.FormEvent) => {
@@ -145,16 +159,31 @@ const Inventory: React.FC = () => {
     if (isNaN(price) || price <= 0) return setAddError("Price must be a positive number.");
     if (isNaN(weight) || weight <= 0) return setAddError("Weight must be a positive number.");
     if (isNaN(category_id)) return setAddError("Select a category.");
+    if (!imageFile) return setAddError("A product image is required.");
 
     setAddSaving(true);
     try {
       const t = token();
       if (!t) throw new Error("Unauthorized");
 
+      let image_url: string | undefined;
+      if (imageFile) {
+        const formData = new FormData();
+        formData.append("image", imageFile);
+        const uploadRes = await fetch("/api/products/image", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${t}` },
+          body: formData,
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) throw new Error(uploadData.error || "Failed to upload image");
+        image_url = uploadData.url;
+      }
+
       const res = await fetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
-        body: JSON.stringify({ name: addForm.name.trim(), price, weight, category_id, quantity }),
+        body: JSON.stringify({ name: addForm.name.trim(), price, weight, category_id, quantity, image_url }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to add product");
@@ -425,6 +454,23 @@ const Inventory: React.FC = () => {
                   />
                 </label>
               </div>
+
+              <label style={styles.fieldLabel}>
+                Product Image
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  onChange={handleImageChange}
+                  style={styles.fieldInput}
+                />
+              </label>
+              {imagePreview && (
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  style={styles.imagePreview}
+                />
+              )}
 
               {addError && <p style={styles.modalError}>{addError}</p>}
 
@@ -705,6 +751,14 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "1rem",
     backgroundColor: "#fff",
     color: "#212529",
+  },
+  imagePreview: {
+    width: "100%",
+    maxHeight: "160px",
+    objectFit: "contain",
+    borderRadius: "6px",
+    border: "1px solid #ced4da",
+    backgroundColor: "#f8f9fa",
   },
   modalError: {
     margin: 0,

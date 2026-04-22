@@ -11,7 +11,17 @@ def fetch_all_orders() -> List[Dict]:
         SELECT
             so.ShoppingOrderID AS order_id,
             so.Status          AS status,
-            so.Street, so.City, so.State, so.Zip,
+            COALESCE(
+                NULLIF(so.Street, ''),
+                (SELECT dt2.DestinationAddress
+                 FROM TripStop ts2
+                 JOIN DeliveryTrip dt2 ON ts2.DeliveryTripID = dt2.DeliveryTripID
+                 WHERE ts2.ShoppingOrderID = so.ShoppingOrderID
+                 ORDER BY dt2.DeliveryTripID DESC
+                 LIMIT 1),
+                ''
+            ) AS Street,
+            so.City, so.State, so.Zip,
             u.UserID           AS customer_id,
             u.Username         AS customer_username,
             u.Email            AS customer_email,
@@ -67,7 +77,17 @@ def fetch_order_detail(order_id: int) -> Optional[Dict]:
         SELECT
             so.ShoppingOrderID AS order_id,
             so.Status          AS status,
-            so.Street, so.City, so.State, so.Zip,
+            COALESCE(
+                NULLIF(so.Street, ''),
+                (SELECT dt2.DestinationAddress
+                 FROM TripStop ts2
+                 JOIN DeliveryTrip dt2 ON ts2.DeliveryTripID = dt2.DeliveryTripID
+                 WHERE ts2.ShoppingOrderID = so.ShoppingOrderID
+                 ORDER BY dt2.DeliveryTripID DESC
+                 LIMIT 1),
+                ''
+            ) AS Street,
+            so.City, so.State, so.Zip,
             u.UserID AS customer_id, u.Username AS customer_username, u.Email AS customer_email
         FROM ShoppingOrder so
         JOIN `User` u ON so.UserID = u.UserID

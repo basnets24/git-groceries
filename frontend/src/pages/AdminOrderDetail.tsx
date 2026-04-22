@@ -179,7 +179,10 @@ const AdminOrderDetail: React.FC = () => {
                                     {order.customer.username} · {order.status}
                                 </h1>
                                 <p style={styles.subtitle}>
-                                    {order.customer.email} · Shipping to {order.address.street}, {order.address.city}, {order.address.state} {order.address.zip}
+                                    {order.customer.email} · Shipping to{" "}
+                                    {order.address.city
+                                        ? `${order.address.street}, ${order.address.city}, ${order.address.state} ${order.address.zip}`
+                                        : order.address.street || "—"}
                                 </p>
                             </div>
                         </header>

@@ -114,7 +114,9 @@ const AdminOrders: React.FC = () => {
                                             <div style={styles.customerEmail}>{o.customer.email}</div>
                                         </td>
                                         <td style={styles.td}>
-                                            {o.address.street}, {o.address.city}, {o.address.state} {o.address.zip}
+                                            {o.address.city
+                                                ? `${o.address.street}, ${o.address.city}, ${o.address.state} ${o.address.zip}`
+                                                : o.address.street || "—"}
                                         </td>
                                         <td style={styles.td}>${o.subtotal.toFixed(2)}</td>
                                         <td style={styles.td}>{o.total_weight.toFixed(1)} lbs</td>

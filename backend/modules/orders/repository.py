@@ -12,7 +12,16 @@ def fetch_customer_orders(customer_id: int) -> List[Dict]:
         SELECT
             so.ShoppingOrderID AS order_id,
             so.Status AS status,
-            so.Street AS street,
+            COALESCE(
+                NULLIF(so.Street, ''),
+                (SELECT dt.DestinationAddress
+                 FROM TripStop ts
+                 JOIN DeliveryTrip dt ON ts.DeliveryTripID = dt.DeliveryTripID
+                 WHERE ts.ShoppingOrderID = so.ShoppingOrderID
+                 ORDER BY dt.DeliveryTripID DESC
+                 LIMIT 1),
+                ''
+            ) AS street,
             so.City AS city,
             so.State AS state,
             so.Zip AS zip,

@@ -33,6 +33,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       STRIPE_API_KEY: ${STRIPE_API_KEY}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
+    volumes:
+      - product_images:/app/uploads/images
 
   frontend:
     build: ./frontend
@@ -59,3 +61,4 @@ services:
 
 volumes:
   mysql_data:
+  product_images:

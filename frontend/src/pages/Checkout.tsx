@@ -6,6 +6,17 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
 
+interface SavedAddress {
+    id: number;
+    label: string;
+    streetLine1: string;
+    streetLine2?: string | null;
+    city: string;
+    state: string;
+    postalCode: string;
+    isDefault: boolean;
+}
+
 interface CheckoutSummary {
     items: Array<{
         order_id: number;
@@ -137,6 +148,7 @@ const Checkout: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [paymentSuccess, setPaymentSuccess] = useState(false);
     const [address, setAddress] = useState("");
+    const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
     const [startingDelivery, setStartingDelivery] = useState(false);
     const [deliveryError, setDeliveryError] = useState<string | null>(null);
 
@@ -183,23 +195,44 @@ const Checkout: React.FC = () => {
             }
 
             try {
-                const response = await fetch("/api/checkout", {
-                    method: "POST",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        "Content-Type": "application/json",
-                    },
-                });
+                const [checkoutResponse, profileResponse] = await Promise.all([
+                    fetch("/api/checkout", {
+                        method: "POST",
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            "Content-Type": "application/json",
+                        },
+                    }),
+                    fetch(`/api/customers/${customerId}/profile`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    }),
+                ]);
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(
-                        errorData.error || "Failed to initialize checkout"
-                    );
+                if (!checkoutResponse.ok) {
+                    const errorData = await checkoutResponse.json();
+                    throw new Error(errorData.error || "Failed to initialize checkout");
                 }
 
-                const data = await response.json();
+                const data = await checkoutResponse.json();
                 setCheckout(data);
+
+                if (profileResponse.ok) {
+                    const profileData = await profileResponse.json();
+                    const addresses: SavedAddress[] = profileData.addresses ?? [];
+                    setSavedAddresses(addresses);
+                    const defaultAddr = addresses.find((a) => a.isDefault);
+                    if (defaultAddr) {
+                        setAddress(
+                            [
+                                defaultAddr.streetLine1,
+                                defaultAddr.streetLine2,
+                                `${defaultAddr.city}, ${defaultAddr.state} ${defaultAddr.postalCode}`,
+                            ]
+                                .filter(Boolean)
+                                .join(", ")
+                        );
+                    }
+                }
             } catch (err) {
                 setError(err instanceof Error ? err.message : "An error occurred");
             } finally {
@@ -243,6 +276,40 @@ const Checkout: React.FC = () => {
                             </div>
                             <div style={styles.addressBlock}>
                                 <label style={styles.label}>Delivery Address</label>
+                                {savedAddresses.length > 0 && (
+                                    <select
+                                        style={styles.addressSelect}
+                                        disabled={startingDelivery}
+                                        onChange={(e) => {
+                                            const id = Number(e.target.value);
+                                            if (!id) return;
+                                            const picked = savedAddresses.find((a) => a.id === id);
+                                            if (picked) {
+                                                setAddress(
+                                                    [
+                                                        picked.streetLine1,
+                                                        picked.streetLine2,
+                                                        `${picked.city}, ${picked.state} ${picked.postalCode}`,
+                                                    ]
+                                                        .filter(Boolean)
+                                                        .join(", ")
+                                                );
+                                            }
+                                        }}
+                                        value={
+                                            savedAddresses.find((a) =>
+                                                address.startsWith(a.streetLine1)
+                                            )?.id ?? ""
+                                        }
+                                    >
+                                        <option value="">— Use a saved address —</option>
+                                        {savedAddresses.map((a) => (
+                                            <option key={a.id} value={a.id}>
+                                                {a.label}{a.isDefault ? " (default)" : ""} — {a.streetLine1}, {a.city}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
                                 <input
                                     type="text"
                                     value={address}
@@ -615,6 +682,17 @@ const styles: { [key: string]: React.CSSProperties } = {
         maxWidth: 420,
         margin: "0 auto",
         textAlign: "left",
+    },
+    addressSelect: {
+        width: "100%",
+        padding: "0.65rem 0.75rem",
+        border: "1px solid #ced4da",
+        borderRadius: 6,
+        fontSize: "0.95rem",
+        marginBottom: "0.75rem",
+        backgroundColor: "#fff",
+        boxSizing: "border-box",
+        cursor: "pointer",
     },
     addressInput: {
         width: "100%",

@@ -1,4 +1,8 @@
-from flask import Blueprint, jsonify, request
+import os
+import uuid
+
+from flask import Blueprint, jsonify, request, send_from_directory
+from werkzeug.utils import secure_filename
 
 from exceptions import ValidationError
 from models.user import UserRole
@@ -7,6 +11,11 @@ from . import services
 
 products_bp = Blueprint("products", __name__)
 
+UPLOAD_DIR = "/app/uploads/images"
+_ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp"}
+
+def _allowed_file(filename: str) -> bool:
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in _ALLOWED_EXTENSIONS
 
 @products_bp.route("/api/categories")
 @auth_required
@@ -61,3 +70,23 @@ def delete_product(product_id: int):
     if not services.delete_product(product_id):
         raise NotFoundError("Product not found")
     return jsonify({"message": f"Product {product_id} has been deactivated"})
+
+@products_bp.route("/api/products/image", methods=["POST"])
+@roles_required(UserRole.EMPLOYEE, UserRole.MANAGER, UserRole.SUPERADMIN)
+def upload_product_image():
+    if "image" not in request.files:
+        raise ValidationError("No image provided")
+    f = request.files["image"]
+    if not f.filename or not _allowed_file(f.filename):
+        raise ValidationError("Invalid file type. Allowed: jpg, jpeg, png, gif, webp")
+
+    ext = f.filename.rsplit(".", 1)[1].lower()
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    f.save(os.path.join(UPLOAD_DIR, filename))
+    return jsonify({"url": f"/images/{filename}"}), 201
+
+@products_bp.route("/images/<path:filename>")
+def serve_product_image(filename: str):
+    safe = secure_filename(filename)
+    return send_from_directory(UPLOAD_DIR, safe)

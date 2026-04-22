@@ -119,6 +119,10 @@ def _persist_trip(
             """,
             (trip_id, order_id, 0, datetime.now() + timedelta(seconds=duration_sec)),
         )
+        cursor.execute(
+            "UPDATE ShoppingOrder SET Street = %s WHERE ShoppingOrderID = %s",
+            (dest_address, order_id),
+        )
         conn.commit()
         cursor.close()
         conn.close()

@@ -152,8 +152,9 @@ const Orders: React.FC = () => {
                     <div style={styles.addressSection}>
                       <h4 style={styles.sectionTitle}>Delivery Address</h4>
                       <p style={styles.address}>
-                        {order.address.street}<br />
-                        {order.address.city}, {order.address.state} {order.address.zip}
+                        {order.address.city
+                          ? <>{order.address.street}<br />{order.address.city}, {order.address.state} {order.address.zip}</>
+                          : order.address.street || "—"}
                       </p>
                     </div>
 
