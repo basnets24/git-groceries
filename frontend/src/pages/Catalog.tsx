@@ -272,7 +272,7 @@ const Catalog: React.FC = () => {
           {!loading && !error && (
             <>
               <div style={styles.filtersSection}>
-                <div style={styles.categoryAndSortRow}>
+                <div style={styles.categoryRow}>
                   <div style={styles.filterGroup}>
                     <label style={styles.filterLabel}>Filter by Category:</label>
                     <div style={styles.categoryButtonsContainer}>
@@ -292,29 +292,32 @@ const Catalog: React.FC = () => {
                       ))}
                     </div>
                   </div>
-
-                  <div style={styles.sortSection}>
-                    <select
-                      value={sortField}
-                      onChange={(e) => setSortField(e.target.value as any)}
-                      style={styles.sortSelect}
-                    >
-                      <option value="price">Sort by Price</option>
-                      <option value="name">Sort by Name</option>
-                      <option value="weight">Sort by Weight</option>
-                    </select>
-                    <button
-                      onClick={() =>
-                        setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
-                      }
-                      style={styles.sortButton}
-                    >
-                      {sortOrder === "asc" ? "Ascending ↑" : "Descending ↓"}
-                    </button>
-                  </div>
                 </div>
 
-                <div style={styles.rangeFiltersRow}>
+                <div style={styles.rangeAndSortRow}>
+                  <div style={styles.sortSection}>
+                    <label style={styles.filterLabel}>Sort Products:</label>
+                    <div style={styles.sortControlsContainer}>
+                      <select
+                        value={sortField}
+                        onChange={(e) => setSortField(e.target.value as any)}
+                        style={styles.sortSelect}
+                      >
+                        <option value="price">Sort by Price</option>
+                        <option value="name">Sort by Name</option>
+                        <option value="weight">Sort by Weight</option>
+                      </select>
+                      <button
+                        onClick={() =>
+                          setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
+                        }
+                        style={styles.sortButton}
+                      >
+                        {sortOrder === "asc" ? "Ascending ↑" : "Descending ↓"}
+                      </button>
+                    </div>
+                  </div>
+
                   <div style={styles.priceFilterGroup}>
                     <label style={styles.filterLabel}>Filter by Price Range:</label>
                     <div style={styles.priceInputContainer}>
@@ -557,9 +560,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     boxShadow: "0 1px 4px rgba(0, 0, 0, 0.08)",
     display: "flex",
     flexDirection: "column",
-    gap: "2rem",
+    gap: "1.5rem",
   },
-  categoryAndSortRow: {
+  categoryRow: {
     display: "flex",
     gap: "2rem",
     alignItems: "flex-start",
@@ -648,7 +651,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     flex: 1,
     minWidth: "300px",
   },
-  rangeFiltersRow: {
+  rangeAndSortRow: {
     display: "flex",
     gap: "2rem",
     alignItems: "flex-start",
@@ -691,11 +694,16 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   sortSection: {
     display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+    flex: 1,
+    minWidth: "250px",
+  },
+  sortControlsContainer: {
+    display: "flex",
     gap: "1rem",
     flexWrap: "wrap",
     alignItems: "flex-end",
-    flex: 1,
-    minWidth: "250px",
   },
   sortSelect: {
     padding: "0.75rem 1rem",
