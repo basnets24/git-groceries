@@ -45,6 +45,13 @@ const tiles: AdminTile[] = [
         cta: "Schedule Deliveries",
         status: "Integration pending",
     },
+    {
+        title: "Delivery Fleet",
+        description: "Live map of the 10-robot fleet, pending-order queue, and manual dispatch with shortest-route planning.",
+        to: "/admin/fleet",
+        cta: "Open Dispatch Console",
+        status: "Live",
+    },
 ];
 
 const AdminDashboard: React.FC = () => {

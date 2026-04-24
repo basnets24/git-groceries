@@ -68,7 +68,8 @@ def complete_order(order_id: int) -> None:
     cursor.execute(
         """
         UPDATE ShoppingOrder
-        SET Status = 'COMPLETED'
+        SET Status = 'COMPLETED',
+            ReadyForDispatchAt = CURRENT_TIMESTAMP
         WHERE ShoppingOrderID = %s AND Status = 'INPROGRESS'
         """,
         (order_id,),

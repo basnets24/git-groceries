@@ -48,6 +48,7 @@ CREATE TABLE ShoppingOrder (
     State       VARCHAR(2)      NOT NULL,
     Zip         VARCHAR(10)     NOT NULL,
     Status      ENUM('INPROGRESS', 'COMPLETED','REFUNDED','VOID') NOT NULL DEFAULT 'INPROGRESS',
+    ReadyForDispatchAt DATETIME NULL,
 
     FOREIGN KEY (UserID) REFERENCES `User`(UserID)
         ON UPDATE CASCADE
@@ -90,9 +91,21 @@ CREATE TABLE Payment (
 -- need to figure out implementation details to get a better idea of how
 -- tables should be structured...
 
+CREATE TABLE Robot (
+    RobotID        INT PRIMARY KEY,
+    Label          VARCHAR(50)     NOT NULL,
+    Status         ENUM('IDLE','DISPATCHED','RETURNING','OFFLINE')
+                    NOT NULL DEFAULT 'IDLE',
+    CurrentLat     DECIMAL(10,7)   NOT NULL,
+    CurrentLng     DECIMAL(10,7)   NOT NULL,
+    CurrentTripID  INT             NULL,
+    UpdatedAt      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    ON UPDATE CURRENT_TIMESTAMP
+);
+
 CREATE TABLE DeliveryTrip (
     DeliveryTripID      INT AUTO_INCREMENT PRIMARY KEY,
-
+    RobotID             INT         NULL,
     Status              ENUM('NOTSTARTED', 'INPROGRESS','COMPLETED','ERROR') NOT NULL DEFAULT 'NOTSTARTED',
     Polyline            TEXT,
     OriginAddress       VARCHAR(255),
@@ -103,7 +116,12 @@ CREATE TABLE DeliveryTrip (
     DestLng             DECIMAL(10,7),
     DistanceM           INT,
     DurationSec         INT,
-    StartedAt           DATETIME DEFAULT CURRENT_TIMESTAMP
+    StartedAt           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ConfirmedAt         DATETIME NULL,
+
+    FOREIGN KEY (RobotID) REFERENCES Robot(RobotID)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
 );
 
 CREATE TABLE TripStop (

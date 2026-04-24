@@ -126,3 +126,17 @@ VALUES
     (1, 'CATEGORY', 'ORGANIC', 'USER'),
     (2, 'BRAND_AVOID', 'BrandX', 'USER'),
     (3, 'ALLERGEN_AVOID', 'PEANUT', 'USER');
+
+-- Delivery fleet: 10 robots all co-located at the SJSU Engineering Building
+-- (same lat/lng the delivery service uses as the origin for every trip).
+INSERT INTO Robot (RobotID, Label, CurrentLat, CurrentLng) VALUES
+    (1,  'Robot #1',  37.3352000, -121.8811000),
+    (2,  'Robot #2',  37.3352000, -121.8811000),
+    (3,  'Robot #3',  37.3352000, -121.8811000),
+    (4,  'Robot #4',  37.3352000, -121.8811000),
+    (5,  'Robot #5',  37.3352000, -121.8811000),
+    (6,  'Robot #6',  37.3352000, -121.8811000),
+    (7,  'Robot #7',  37.3352000, -121.8811000),
+    (8,  'Robot #8',  37.3352000, -121.8811000),
+    (9,  'Robot #9',  37.3352000, -121.8811000),
+    (10, 'Robot #10', 37.3352000, -121.8811000);
