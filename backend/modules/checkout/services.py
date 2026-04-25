@@ -62,7 +62,7 @@ def create_checkout_session(customer_id: int) -> Dict:
     }
 
 
-def complete_order(order_id: int, customer_id: int) -> None:
+def complete_order(order_id: int, customer_id: int, street: str = "", city: str = "", state: str = "", zip_code: str = "") -> None:
     """Finalize an order and persist payment/inventory side-effects."""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -117,10 +117,14 @@ def complete_order(order_id: int, customer_id: int) -> None:
             """
             UPDATE ShoppingOrder
             SET Status = 'COMPLETED',
-                ReadyForDispatchAt = CURRENT_TIMESTAMP
+                ReadyForDispatchAt = CURRENT_TIMESTAMP,
+                Street = %s,
+                City = %s,
+                State = %s,
+                Zip = %s
             WHERE ShoppingOrderID = %s
             """,
-            (order_id,),
+            (street, city, state, zip_code, order_id),
         )
 
         conn.commit()

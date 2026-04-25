@@ -22,6 +22,13 @@ interface TripInit {
 
 const POLL_INTERVAL_MS = 2000;
 
+function formatEta(sec: number): string {
+    if (sec < 60) return `${sec}s`;
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}
+
 const loadGoogleMaps = (apiKey: string): Promise<void> => {
     return new Promise((resolve, reject) => {
         if (window.google?.maps?.geometry) {
@@ -109,8 +116,11 @@ const TrackDelivery: React.FC = () => {
                 cumulativeRef.current = cumulative;
                 totalDistRef.current = total;
 
+                const originPos = decoded[0] ?? trip.origin;
+                const destPos = decoded[decoded.length - 1] ?? trip.destination;
+
                 const map = new google.maps.Map(mapRef.current!, {
-                    center: trip.origin,
+                    center: originPos,
                     zoom: 13,
                 });
 
@@ -123,20 +133,20 @@ const TrackDelivery: React.FC = () => {
                 });
 
                 new google.maps.Marker({
-                    position: trip.origin,
+                    position: originPos,
                     map,
                     label: "A",
                     title: "SJSU Engineering Building",
                 });
                 new google.maps.Marker({
-                    position: trip.destination,
+                    position: destPos,
                     map,
                     label: "B",
                     title: trip.destination.address,
                 });
 
                 robotMarkerRef.current = new google.maps.Marker({
-                    position: trip.origin,
+                    position: originPos,
                     map,
                     icon: {
                         path: google.maps.SymbolPath.CIRCLE,
@@ -151,8 +161,8 @@ const TrackDelivery: React.FC = () => {
                 });
 
                 const bounds = new google.maps.LatLngBounds();
-                bounds.extend(trip.origin);
-                bounds.extend(trip.destination);
+                bounds.extend(originPos);
+                bounds.extend(destPos);
                 map.fitBounds(bounds);
             })
             .catch((e) => setError(e.message || "Map failed to load"));
@@ -228,7 +238,7 @@ const TrackDelivery: React.FC = () => {
                         ) : (
                             <>
                                 <span>
-                                    ETA: <strong>{eta ?? "—"}s</strong>
+                                    ETA: <strong>{eta != null ? formatEta(eta) : "—"}</strong>
                                 </span>
                                 <span>
                                     Progress: <strong>{Math.round(progress * 100)}%</strong>

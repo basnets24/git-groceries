@@ -43,13 +43,13 @@ def list_my_deliveries():
     customer_id = auth_payload.get("customerID")
     if customer_id is None:
         raise AuthError("Missing customer identity in token", 401)
-    return jsonify({"trips": services.list_deliveries_for_customer(customer_id)}), 200
+    return jsonify({"trips": services.list_customer_deliveries(customer_id)}), 200
 
 
 @delivery_bp.route("/api/delivery/<int:trip_id>/status", methods=["GET"])
 @auth_required
 def delivery_status(trip_id: int):
-    result = services.get_robot_status(trip_id)
+    result = services.get_trip_status(trip_id)
     if result is None:
         return jsonify({"error": "Trip not found"}), 404
     return jsonify(result), 200
