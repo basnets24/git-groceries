@@ -49,3 +49,44 @@ def create_payment_intent(order_id: int, amount: Decimal, currency: str = "usd")
         "currency": intent["currency"],
         "status": intent["status"],
     }
+
+
+def get_or_create_payment_intent(order_id: int, amount: Decimal, currency: str = "usd") -> Dict:
+    """Reuse an existing PENDING PaymentIntent for this order, or create a fresh one."""
+    existing = repository.fetch_payment_by_order_id(order_id)
+    if existing and existing["Status"] == "PENDING":
+        client = StripeClient(_ensure_stripe_config())
+        try:
+            intent = client.retrieve_payment_intent(existing["ProviderRef"])
+            if intent["status"] in ("requires_payment_method", "requires_confirmation", "requires_action"):
+                return {
+                    "payment_intent_id": intent["id"],
+                    "client_secret": intent["client_secret"],
+                    "amount": float(amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                    "currency": intent["currency"],
+                    "status": intent["status"],
+                }
+        except Exception:
+            pass
+
+    return create_payment_intent(order_id=order_id, amount=amount, currency=currency)
+
+
+def sync_payment_from_stripe(order_id: int) -> bool:
+    """Retrieve the PaymentIntent from Stripe and sync local status. Returns True if SUCCESS."""
+    payment = repository.fetch_payment_by_order_id(order_id)
+    if payment is None:
+        return False
+    if payment["Status"] == "SUCCESS":
+        return True
+
+    client = StripeClient(_ensure_stripe_config())
+    try:
+        intent = client.retrieve_payment_intent(payment["ProviderRef"])
+    except Exception as exc:
+        raise ServiceError(f"Failed to retrieve payment status from Stripe: {exc}") from exc
+
+    if intent["status"] == "succeeded":
+        repository.update_payment_status_by_provider_ref(payment["ProviderRef"], "SUCCESS")
+        return True
+    raise ServiceError(f"Payment not yet succeeded (Stripe status: {intent['status']})")

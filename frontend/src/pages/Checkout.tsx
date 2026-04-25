@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { loadStripe, Stripe as StripeType, StripeElements } from "@stripe/stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -67,13 +67,6 @@ const CheckoutForm: React.FC<{ clientSecret: string; orderId: number; onSuccess:
         setProcessing(true);
         setError(null);
 
-        const { error: submitError } = await elements.submit();
-        if (submitError?.message) {
-            setError(submitError.message);
-            setProcessing(false);
-            return;
-        }
-
         const { error: confirmError } = await stripe.confirmCardPayment(clientSecret, {
             payment_method: {
                 card: elements.getElement(CardElement)!,
@@ -85,21 +78,29 @@ const CheckoutForm: React.FC<{ clientSecret: string; orderId: number; onSuccess:
             setError(confirmError.message || "Payment failed");
             setProcessing(false);
         } else {
-            // Complete the order after successful payment
             try {
                 const token = localStorage.getItem("token");
-                await fetch(`/api/orders/${orderId}/complete`, {
+                const completeResponse = await fetch(`/api/orders/${orderId}/complete`, {
                     method: "POST",
                     headers: {
                         Authorization: `Bearer ${token}`,
                         "Content-Type": "application/json",
                     },
                 });
+                if (!completeResponse.ok) {
+                    const payload = await completeResponse.json().catch(() => ({}));
+                    throw new Error(payload.error || "Failed to finalize order");
+                }
+                onSuccess();
             } catch (completeError) {
-                console.error("Failed to complete order:", completeError);
-                // Continue with success flow even if completion fails
+                setError(
+                    completeError instanceof Error
+                        ? completeError.message
+                        : "Failed to finalize order"
+                );
+            } finally {
+                setProcessing(false);
             }
-            onSuccess();
         }
     };
 

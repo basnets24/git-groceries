@@ -5,7 +5,6 @@ from db import get_db_connection
 from exceptions import NotFoundError, ValidationError
 from modules.cart import services as cart_services
 from modules.cart.repository import fetch_inprogress_order
-from modules.payment import services as payment_services
 
 
 def _format_decimal(value: Decimal) -> float:
@@ -49,7 +48,9 @@ def create_checkout_session(customer_id: int) -> Dict:
         raise NotFoundError("No active order found for customer")
 
     summary = _build_order_summary(items)
-    payment_intent = payment_services.create_payment_intent(
+    from modules.payment import services as payment_services
+
+    payment_intent = payment_services.get_or_create_payment_intent(
         order_id=order["ShoppingOrderID"],
         amount=Decimal(str(summary["total_amount"])),
     )
@@ -62,18 +63,67 @@ def create_checkout_session(customer_id: int) -> Dict:
 
 
 def complete_order(order_id: int) -> None:
-    """Mark an order as completed after successful payment."""
+    """Finalize an order and persist payment/inventory side-effects."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        """
-        UPDATE ShoppingOrder
-        SET Status = 'COMPLETED',
-            ReadyForDispatchAt = CURRENT_TIMESTAMP
-        WHERE ShoppingOrderID = %s AND Status = 'INPROGRESS'
-        """,
-        (order_id,),
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        cursor.execute(
+            """
+            SELECT Status
+            FROM ShoppingOrder
+            WHERE ShoppingOrderID = %s
+            FOR UPDATE
+            """,
+            (order_id,),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            raise NotFoundError("Order not found")
+
+        if row[0] == "COMPLETED":
+            conn.commit()
+            return
+
+        if row[0] != "INPROGRESS":
+            raise ValidationError("Order is not in progress")
+
+        cursor.execute(
+            """
+            SELECT PaymentID
+            FROM Payment
+            WHERE ShoppingOrderID = %s AND Status = 'SUCCESS'
+            LIMIT 1
+            """,
+            (order_id,),
+        )
+        payment = cursor.fetchone()
+        if payment is None:
+            from modules.payment import services as payment_services
+            if not payment_services.sync_payment_from_stripe(order_id):
+                raise ValidationError("Payment has not been confirmed yet")
+
+        cursor.execute(
+            """
+            UPDATE Inventory i
+            JOIN ShoppingOrderItem soi ON soi.ProductID = i.ProductID
+            SET i.QuantityInStock = GREATEST(i.QuantityInStock - soi.Quantity, 0),
+                i.ReservedQty = GREATEST(i.ReservedQty - soi.Quantity, 0)
+            WHERE soi.ShoppingOrderID = %s
+            """,
+            (order_id,),
+        )
+
+        cursor.execute(
+            """
+            UPDATE ShoppingOrder
+            SET Status = 'COMPLETED',
+                ReadyForDispatchAt = CURRENT_TIMESTAMP
+            WHERE ShoppingOrderID = %s
+            """,
+            (order_id,),
+        )
+
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()

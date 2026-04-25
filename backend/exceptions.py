@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional, TypeVar
 
 from flask import Flask, jsonify
+from werkzeug.exceptions import HTTPException
 
 
 class APIError(Exception):
@@ -71,6 +72,12 @@ def register_error_handlers(app: TFlask) -> TFlask:
     def handle_api_error(error: APIError):
         response = jsonify(error.to_dict())
         response.status_code = error.status_code
+        return response
+
+    @app.errorhandler(HTTPException)
+    def handle_http_exception(error: HTTPException):
+        response = jsonify({"error": error.description})
+        response.status_code = error.code or 500
         return response
 
     @app.errorhandler(Exception)

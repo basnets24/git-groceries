@@ -12,7 +12,9 @@ const About: React.FC = () => {
           <div style={styles.placeholder}>
             <p style={styles.text}>Organic Food Store</p>
             <p style={styles.subtext}>
-              This page is under construction. Company information coming soon!
+
+              We are building a fresher, faster shopping experience with quality
+              products, reliable delivery, and friendly service for our community.
             </p>
           </div>
         </div>

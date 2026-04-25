@@ -38,6 +38,7 @@ class StripeClient:
         intent = stripe.PaymentIntent.retrieve(intent_id)
         return {
             "id": intent.id,
+            "client_secret": intent.client_secret,
             "amount": intent.amount,
             "currency": intent.currency,
             "status": intent.status,

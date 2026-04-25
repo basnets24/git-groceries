@@ -122,6 +122,41 @@ def update_order_item_quantity(order_id: int, product_id: int, quantity: int) ->
     conn.close()
 
 
+def try_reserve_inventory(product_id: int, quantity: int) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        UPDATE Inventory
+        SET ReservedQty = ReservedQty + %s
+        WHERE ProductID = %s
+          AND QuantityInStock >= ReservedQty + %s
+        """,
+        (quantity, product_id, quantity),
+    )
+    conn.commit()
+    updated = cursor.rowcount > 0
+    cursor.close()
+    conn.close()
+    return updated
+
+
+def release_reserved_inventory(product_id: int, quantity: int) -> None:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        UPDATE Inventory
+        SET ReservedQty = GREATEST(ReservedQty - %s, 0)
+        WHERE ProductID = %s
+        """,
+        (quantity, product_id),
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
 def insert_order_item(
     order_id: int,
     product_id: int,
