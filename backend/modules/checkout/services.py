@@ -62,7 +62,7 @@ def create_checkout_session(customer_id: int) -> Dict:
     }
 
 
-def complete_order(order_id: int) -> None:
+def complete_order(order_id: int, customer_id: int) -> None:
     """Finalize an order and persist payment/inventory side-effects."""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -71,10 +71,10 @@ def complete_order(order_id: int) -> None:
             """
             SELECT Status
             FROM ShoppingOrder
-            WHERE ShoppingOrderID = %s
+            WHERE ShoppingOrderID = %s AND UserID = %s
             FOR UPDATE
             """,
-            (order_id,),
+            (order_id, customer_id),
         )
         row = cursor.fetchone()
         if row is None:
