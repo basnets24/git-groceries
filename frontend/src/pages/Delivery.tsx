@@ -16,10 +16,16 @@ interface TripSummary {
     progress: number;
     eta_sec: number;
     finished: boolean;
-    started_at: number;
 }
 
 const POLL_MS = 3000;
+
+function formatEta(sec: number): string {
+    if (sec < 60) return `${sec}s`;
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}
 
 const Delivery: React.FC = () => {
     const { user, loading: authLoading } = useAuth();
@@ -53,7 +59,14 @@ const Delivery: React.FC = () => {
         };
 
         fetchTrips();
-        const id = setInterval(fetchTrips, POLL_MS);
+        const id = setInterval(() => {
+            fetchTrips().then(() => {
+                setTrips((current) => {
+                    if (!current.some((t) => !t.finished)) clearInterval(id);
+                    return current;
+                });
+            });
+        }, POLL_MS);
         return () => clearInterval(id);
     }, [user, authLoading]);
 
@@ -101,60 +114,70 @@ const Delivery: React.FC = () => {
 
                     {user && !loading && !error && trips.length === 0 && (
                         <div style={styles.empty}>
-                            <p style={styles.text}>No active deliveries</p>
+                            <p style={styles.text}>No deliveries yet</p>
                             <p style={styles.subtext}>
                                 Place an order to start tracking a delivery.
                             </p>
                         </div>
                     )}
 
-                    {user && !loading && trips.length > 0 && (
-                        <div style={styles.list}>
-                            {trips.map((trip) => (
-                                <div key={trip.trip_id} style={styles.card}>
-                                    <div style={styles.cardHeader}>
-                                        <h2 style={styles.cardTitle}>
-                                            Order #{trip.order_id}
-                                        </h2>
-                                        <span
-                                            style={{
-                                                ...styles.badge,
-                                                backgroundColor: trip.finished
-                                                    ? "#d8f3dc"
-                                                    : "#fff3cd",
-                                                color: trip.finished ? "#1b4332" : "#856404",
-                                            }}
-                                        >
-                                            {trip.finished ? "Delivered" : "In Transit"}
-                                        </span>
-                                    </div>
-                                    <p style={styles.addressLine}>
-                                        <strong>To:</strong> {trip.destination.address}
-                                    </p>
-                                    <div style={styles.progressBar}>
-                                        <div
-                                            style={{
-                                                ...styles.progressFill,
-                                                width: `${Math.round(trip.progress * 100)}%`,
-                                            }}
-                                        />
-                                    </div>
-                                    <div style={styles.metaRow}>
-                                        <span>{Math.round(trip.progress * 100)}% complete</span>
-                                        <span>
-                                            {trip.finished ? "Arrived" : `ETA ${trip.eta_sec}s`}
-                                        </span>
-                                    </div>
-                                    <button
-                                        onClick={() => openTrack(trip)}
-                                        style={styles.trackButton}
-                                    >
-                                        {trip.finished ? "View Route" : "Track on Map"}
-                                    </button>
+                    {user && !loading && trips.length > 0 && (() => {
+                        const active = trips.filter((t) => !t.finished);
+                        const past = trips.filter((t) => t.finished);
+
+                        const renderActiveCard = (trip: TripSummary) => (
+                            <div key={trip.trip_id} style={styles.card}>
+                                <div style={styles.cardHeader}>
+                                    <h2 style={styles.cardTitle}>Order #{trip.order_id}</h2>
+                                    <span style={{ ...styles.badge, backgroundColor: "#fff3cd", color: "#856404" }}>
+                                        In Transit
+                                    </span>
                                 </div>
-                            ))}
-                        </div>
-                    )}
+                                <p style={styles.addressLine}>
+                                    <strong>To:</strong> {trip.destination.address}
+                                </p>
+                                <div style={styles.progressBar}>
+                                    <div style={{ ...styles.progressFill, width: `${Math.round(trip.progress * 100)}%` }} />
+                                </div>
+                                <div style={styles.metaRow}>
+                                    <span>{Math.round(trip.progress * 100)}% complete</span>
+                                    <span>ETA {formatEta(trip.eta_sec)}</span>
+                                </div>
+                                <button onClick={() => openTrack(trip)} style={styles.trackButton}>
+                                    Track on Map
+                                </button>
+                            </div>
+                        );
+
+                        const renderPastCard = (trip: TripSummary) => (
+                            <div key={trip.trip_id} style={styles.pastCard}>
+                                <div style={styles.pastRow}>
+                                    <span style={styles.pastTitle}>Order #{trip.order_id}</span>
+                                    <span style={styles.pastAddress}>{trip.destination.address}</span>
+                                    <span style={{ ...styles.badge, backgroundColor: "#d8f3dc", color: "#1b4332" }}>
+                                        Delivered
+                                    </span>
+                                </div>
+                            </div>
+                        );
+
+                        return (
+                            <>
+                                {active.length > 0 && (
+                                    <section style={styles.section}>
+                                        <h2 style={styles.sectionTitle}>Active Deliveries</h2>
+                                        <div style={styles.list}>{active.map(renderActiveCard)}</div>
+                                    </section>
+                                )}
+                                {past.length > 0 && (
+                                    <section style={styles.section}>
+                                        <h2 style={styles.sectionTitle}>Past Deliveries</h2>
+                                        <div style={styles.list}>{past.map(renderPastCard)}</div>
+                                    </section>
+                                )}
+                            </>
+                        );
+                    })()}
                 </div>
             </main>
             <Footer />
@@ -206,6 +229,17 @@ const styles: { [key: string]: React.CSSProperties } = {
     subtext: {
         fontSize: "1rem",
         color: "#6c757d",
+    },
+    section: {
+        marginBottom: "2rem",
+    },
+    sectionTitle: {
+        fontSize: "1.25rem",
+        fontWeight: 700,
+        color: "#1b4332",
+        marginBottom: "1rem",
+        paddingBottom: "0.4rem",
+        borderBottom: "2px solid #d8f3dc",
     },
     list: {
         display: "flex",
@@ -260,6 +294,31 @@ const styles: { [key: string]: React.CSSProperties } = {
         color: "#6c757d",
         fontSize: "0.9rem",
         marginBottom: "1rem",
+    },
+    pastCard: {
+        backgroundColor: "#ffffff",
+        borderRadius: 8,
+        padding: "0.75rem 1rem",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+    },
+    pastRow: {
+        display: "flex",
+        alignItems: "center",
+        gap: "1rem",
+    },
+    pastTitle: {
+        fontWeight: 600,
+        color: "#1b4332",
+        fontSize: "0.95rem",
+        whiteSpace: "nowrap" as const,
+    },
+    pastAddress: {
+        flex: 1,
+        color: "#6c757d",
+        fontSize: "0.875rem",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap" as const,
     },
     trackButton: {
         backgroundColor: "#2d6a4f",

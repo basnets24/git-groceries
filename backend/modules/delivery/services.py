@@ -1,11 +1,10 @@
-import itertools
 import os
-import time
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import mysql.connector
 
+from db import get_db_connection
 from exceptions import ServiceError, ValidationError
 from integrations.google_maps.client import GoogleMapsClient, GoogleMapsConfig
 from .delivery_planner import can_add
@@ -18,9 +17,6 @@ ROBOT_ORIGIN_ADDRESS = (
     "1 Washington Sq, San Jose, CA 95192"
 )
 SIMULATED_TRIP_DURATION_SEC = 60
-
-_TRIPS: Dict[int, Dict] = {}
-_TRIP_ID_SEQ = itertools.count(1)
 
 
 def start_simulated_delivery(order_id: int, address: str, customer_id: Optional[int] = None) -> Dict:
@@ -49,21 +45,11 @@ def start_simulated_delivery(order_id: int, address: str, customer_id: Optional[
         duration_sec=directions["duration_sec"],
     )
 
-    trip_id = db_trip_id if db_trip_id is not None else next(_TRIP_ID_SEQ)
-    _TRIPS[trip_id] = {
-        "order_id": order_id,
-        "customer_id": customer_id,
-        "start_time": time.time(),
-        "duration_sec": SIMULATED_TRIP_DURATION_SEC,
-        "origin": origin,
-        "destination": destination,
-        "encoded_polyline": directions["encoded_polyline"],
-        "real_duration_sec": directions["duration_sec"],
-        "distance_m": directions["distance_m"],
-    }
+    if db_trip_id is None:
+        raise ServiceError("Failed to persist delivery trip to database")
 
     return {
-        "trip_id": trip_id,
+        "trip_id": db_trip_id,
         "order_id": order_id,
         "polyline": directions["encoded_polyline"],
         "origin": origin,
@@ -131,50 +117,6 @@ def _persist_trip(
         return None
 
 
-def list_deliveries_for_customer(customer_id: int) -> list:
-    now = time.time()
-    trips = []
-    for trip_id, trip in _TRIPS.items():
-        if trip.get("customer_id") != customer_id:
-            continue
-        elapsed = now - trip["start_time"]
-        duration = trip["duration_sec"]
-        progress = max(0.0, min(1.0, elapsed / duration if duration > 0 else 1.0))
-        trips.append({
-            "trip_id": trip_id,
-            "order_id": trip["order_id"],
-            "polyline": trip["encoded_polyline"],
-            "origin": trip["origin"],
-            "destination": trip["destination"],
-            "total_duration_sec": duration,
-            "real_duration_sec": trip["real_duration_sec"],
-            "distance_m": trip["distance_m"],
-            "progress": progress,
-            "eta_sec": max(0, int(duration - elapsed)),
-            "finished": progress >= 1.0,
-            "started_at": trip["start_time"],
-        })
-    trips.sort(key=lambda t: t["started_at"], reverse=True)
-    return trips
-
-
-def get_robot_status(trip_id: int) -> Optional[Dict]:
-    trip = _TRIPS.get(trip_id)
-    if not trip:
-        return None
-
-    elapsed = time.time() - trip["start_time"]
-    duration = trip["duration_sec"]
-    progress = max(0.0, min(1.0, elapsed / duration if duration > 0 else 1.0))
-    eta_sec = max(0, int(duration - elapsed))
-
-    return {
-        "trip_id": trip_id,
-        "progress": progress,
-        "eta_sec": eta_sec,
-        "finished": progress >= 1.0,
-    }
-
 def get_db():
     return mysql.connector.connect(
         host=os.getenv("MYSQL_HOST"),
@@ -196,7 +138,8 @@ def fetch_orders():
         JOIN ShoppingOrderItem soi ON so.ShoppingOrderID = soi.ShoppingOrderID
         JOIN CustomerProfile cp ON so.UserID = cp.UserID
         JOIN CustomerAddress ca ON cp.DefaultAddressID = ca.CustomerAddressID
-        WHERE so.Status = 'INPROGRESS'
+        WHERE so.Status = 'COMPLETED'
+          AND so.ReadyForDispatchAt IS NOT NULL
         GROUP BY so.ShoppingOrderID
     """)
 
@@ -245,25 +188,33 @@ def dispatch_orders():
         if route.get("status") != "OK":
             continue
 
-        total_distance_m = sum(leg.get("distance", {}).get("value", 0) for leg in route.get("legs", []))
-        total_duration_sec = sum(leg.get("duration", {}).get("value", 0) for leg in route.get("legs", []))
+        legs = route.get("legs", [])
+        total_distance_m = sum(leg.get("distance", {}).get("value", 0) for leg in legs)
+        total_duration_sec = sum(leg.get("duration", {}).get("value", 0) for leg in legs)
+
+        origin_loc = legs[0].get("start_location", {}) if legs else {}
+        dest_loc = legs[-1].get("end_location", {}) if legs else {}
 
         cursor.execute("""
             INSERT INTO DeliveryTrip (
                 Status, Polyline, OriginAddress, DestinationAddress,
+                OriginLat, OriginLng, DestLat, DestLng,
                 DistanceM, DurationSec
             )
-            VALUES ('INPROGRESS', %s, %s, %s, %s, %s)
+            VALUES ('INPROGRESS', %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             route.get("overview_polyline"),
             origin,
             destination,
+            origin_loc.get("lat"),
+            origin_loc.get("lng"),
+            dest_loc.get("lat"),
+            dest_loc.get("lng"),
             total_distance_m,
             total_duration_sec,
         ))
         trip_id = cursor.lastrowid
 
-        legs = route.get("legs", [])
         now = datetime.now()
         current_time = now
 
@@ -310,3 +261,115 @@ def dispatch_orders():
     conn.close()
 
     return {"trips": results}
+
+
+def _calc_progress(started_at: Optional[datetime], duration_sec: int, finished: bool):
+    if finished:
+        return 1.0, 0
+    if not started_at or duration_sec <= 0:
+        return 0.0, duration_sec
+    elapsed = (datetime.now() - started_at).total_seconds()
+    progress = max(0.0, min(1.0, elapsed / duration_sec))
+    eta_sec = max(0, int(duration_sec - elapsed))
+    return progress, eta_sec
+
+
+def list_customer_deliveries(customer_id: int) -> List[Dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        """
+        SELECT
+            dt.DeliveryTripID     AS trip_id,
+            dt.Status             AS trip_status,
+            dt.Polyline           AS polyline,
+            dt.OriginAddress      AS origin_address,
+            dt.OriginLat          AS origin_lat,
+            dt.OriginLng          AS origin_lng,
+            dt.DestinationAddress AS dest_address,
+            dt.DestLat            AS dest_lat,
+            dt.DestLng            AS dest_lng,
+            dt.DistanceM          AS distance_m,
+            dt.DurationSec        AS duration_sec,
+            dt.StartedAt          AS started_at,
+            ts.ShoppingOrderID    AS order_id
+        FROM DeliveryTrip dt
+        JOIN TripStop ts  ON dt.DeliveryTripID  = ts.DeliveryTripID
+        JOIN ShoppingOrder so ON ts.ShoppingOrderID = so.ShoppingOrderID
+        WHERE so.UserID = %s
+        ORDER BY dt.DeliveryTripID DESC
+        """,
+        (customer_id,),
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    seen = set()
+    trips = []
+    for row in rows:
+        if row["trip_id"] in seen:
+            continue
+        seen.add(row["trip_id"])
+
+        finished = row["trip_status"] == "COMPLETED"
+        duration_sec = row["duration_sec"] or 0
+        progress, eta_sec = _calc_progress(row["started_at"], duration_sec, finished)
+        if progress >= 1.0:
+            finished = True
+
+        trips.append({
+            "trip_id": row["trip_id"],
+            "order_id": row["order_id"],
+            "polyline": row["polyline"] or "",
+            "origin": {
+                "lat": float(row["origin_lat"]) if row["origin_lat"] else 0,
+                "lng": float(row["origin_lng"]) if row["origin_lng"] else 0,
+                "address": row["origin_address"] or "",
+            },
+            "destination": {
+                "lat": float(row["dest_lat"]) if row["dest_lat"] else 0,
+                "lng": float(row["dest_lng"]) if row["dest_lng"] else 0,
+                "address": row["dest_address"] or "",
+            },
+            "total_duration_sec": duration_sec,
+            "real_duration_sec": duration_sec,
+            "distance_m": row["distance_m"] or 0,
+            "progress": progress,
+            "eta_sec": eta_sec,
+            "finished": finished,
+            "started_at": row["started_at"].timestamp() if row["started_at"] else 0,
+        })
+    return trips
+
+
+def get_trip_status(trip_id: int) -> Optional[Dict]:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        """
+        SELECT Status, DurationSec, StartedAt
+        FROM DeliveryTrip
+        WHERE DeliveryTripID = %s
+        """,
+        (trip_id,),
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if row is None:
+        return None
+
+    finished = row["Status"] == "COMPLETED"
+    duration_sec = row["DurationSec"] or 0
+    progress, eta_sec = _calc_progress(row["StartedAt"], duration_sec, finished)
+    if progress >= 1.0:
+        finished = True
+
+    return {
+        "trip_id": trip_id,
+        "progress": progress,
+        "eta_sec": eta_sec,
+        "finished": finished,
+    }

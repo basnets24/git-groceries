@@ -1,6 +1,6 @@
 """Checkout routes that start Stripe payment flow."""
 
-from flask import jsonify, g
+from flask import jsonify, g, request
 
 from exceptions import AuthError
 from modules.auth.decorators import auth_required
@@ -25,7 +25,14 @@ def complete_order(order_id: int):
     if auth_payload is None or "customerID" not in auth_payload:
         raise AuthError("Missing token", 401)
 
-    # Note: In a production system, you'd verify the order belongs to the customer
-    # For now, we'll trust the frontend to only call this for valid orders
-    services.complete_order(order_id)
+    customer_id = auth_payload["customerID"]
+    body = request.get_json(silent=True) or {}
+    services.complete_order(
+        order_id=order_id,
+        customer_id=customer_id,
+        street=body.get("street", ""),
+        city=body.get("city", ""),
+        state=body.get("state", ""),
+        zip_code=body.get("zip", ""),
+    )
     return jsonify({"message": "Order completed successfully"}), 200

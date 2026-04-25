@@ -34,6 +34,7 @@ create stripe api key and paste into .env file
 [stripe link](https://dashboard.stripe.com)
 
 in .env, set STRIPE_API_KEY=secret key
+in .env, set STRIPE_WEBHOOK_SECRET=webhook signing secret
 in frontend/.env REACT_APP_STRIPE_PUBLISHABLE_KEY = publishable key
 
 make sure to add google_maps key in .env and frontend /.env

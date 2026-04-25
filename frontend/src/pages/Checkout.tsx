@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { loadStripe, Stripe as StripeType, StripeElements } from "@stripe/stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -50,10 +50,26 @@ interface CheckoutResponse {
 
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY!);
 
-const CheckoutForm: React.FC<{ clientSecret: string; orderId: number; onSuccess: () => void }> = ({
+interface CheckoutFormProps {
+    clientSecret: string;
+    orderId: number;
+    onSuccess: () => void;
+    address: string;
+    setAddress: (v: string) => void;
+    savedAddresses: SavedAddress[];
+    selectedAddressId: number | null;
+    setSelectedAddressId: (id: number | null) => void;
+}
+
+const CheckoutForm: React.FC<CheckoutFormProps> = ({
     clientSecret,
     orderId,
     onSuccess,
+    address,
+    setAddress,
+    savedAddresses,
+    selectedAddressId,
+    setSelectedAddressId,
 }) => {
     const stripe = useStripe();
     const elements = useElements();
@@ -64,15 +80,13 @@ const CheckoutForm: React.FC<{ clientSecret: string; orderId: number; onSuccess:
         e.preventDefault();
         if (!stripe || !elements) return;
 
-        setProcessing(true);
-        setError(null);
-
-        const { error: submitError } = await elements.submit();
-        if (submitError?.message) {
-            setError(submitError.message);
-            setProcessing(false);
+        if (!address.trim()) {
+            setError("Please enter a delivery address");
             return;
         }
+
+        setProcessing(true);
+        setError(null);
 
         const { error: confirmError } = await stripe.confirmCardPayment(clientSecret, {
             payment_method: {
@@ -84,42 +98,99 @@ const CheckoutForm: React.FC<{ clientSecret: string; orderId: number; onSuccess:
         if (confirmError) {
             setError(confirmError.message || "Payment failed");
             setProcessing(false);
-        } else {
-            // Complete the order after successful payment
-            try {
-                const token = localStorage.getItem("token");
-                await fetch(`/api/orders/${orderId}/complete`, {
-                    method: "POST",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        "Content-Type": "application/json",
-                    },
-                });
-            } catch (completeError) {
-                console.error("Failed to complete order:", completeError);
-                // Continue with success flow even if completion fails
+            return;
+        }
+
+        try {
+            const token = localStorage.getItem("token");
+
+            let street = address.trim();
+            let city = "";
+            let state = "";
+            let zip = "";
+            if (selectedAddressId !== null) {
+                const saved = savedAddresses.find((a) => a.id === selectedAddressId);
+                if (saved) {
+                    street = [saved.streetLine1, saved.streetLine2].filter(Boolean).join(", ");
+                    city = saved.city;
+                    state = saved.state;
+                    zip = saved.postalCode;
+                }
+            }
+
+            const completeResponse = await fetch(`/api/orders/${orderId}/complete`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ street, city, state, zip }),
+            });
+            if (!completeResponse.ok) {
+                const payload = await completeResponse.json().catch(() => ({}));
+                throw new Error(payload.error || "Failed to finalize order");
             }
             onSuccess();
+        } catch (completeError) {
+            setError(
+                completeError instanceof Error
+                    ? completeError.message
+                    : "Failed to finalize order"
+            );
+        } finally {
+            setProcessing(false);
         }
     };
 
     return (
         <form onSubmit={handleSubmit} style={styles.form}>
             <div style={styles.cardContainer}>
+                <label style={styles.label}>Delivery Address</label>
+                {savedAddresses.length > 0 && (
+                    <select
+                        style={styles.addressSelect}
+                        value={selectedAddressId ?? ""}
+                        onChange={(e) => {
+                            const id = Number(e.target.value) || null;
+                            setSelectedAddressId(id);
+                            if (id) {
+                                const saved = savedAddresses.find((a) => a.id === id);
+                                if (saved) {
+                                    setAddress(
+                                        [saved.streetLine1, saved.streetLine2, `${saved.city}, ${saved.state} ${saved.postalCode}`]
+                                            .filter(Boolean)
+                                            .join(", ")
+                                    );
+                                }
+                            }
+                        }}
+                    >
+                        <option value="">— Select a saved address —</option>
+                        {savedAddresses.map((a) => (
+                            <option key={a.id} value={a.id}>
+                                {a.label}{a.isDefault ? " (default)" : ""} — {a.streetLine1}, {a.city}
+                            </option>
+                        ))}
+                    </select>
+                )}
+                <input
+                    type="text"
+                    value={address}
+                    onChange={(e) => {
+                        setAddress(e.target.value);
+                        setSelectedAddressId(null);
+                    }}
+                    placeholder="e.g. 1 Washington Sq, San Jose, CA 95192"
+                    style={styles.addressInput}
+                />
+            </div>
+            <div style={styles.cardContainer}>
                 <label style={styles.label}>Card Details</label>
                 <CardElement
                     options={{
                         style: {
-                            base: {
-                                fontSize: "16px",
-                                color: "#424770",
-                                "::placeholder": {
-                                    color: "#aab7c4",
-                                },
-                            },
-                            invalid: {
-                                color: "#9e2146",
-                            },
+                            base: { fontSize: "16px", color: "#424770", "::placeholder": { color: "#aab7c4" } },
+                            invalid: { color: "#9e2146" },
                         },
                     }}
                 />
@@ -149,37 +220,7 @@ const Checkout: React.FC = () => {
     const [paymentSuccess, setPaymentSuccess] = useState(false);
     const [address, setAddress] = useState("");
     const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
-    const [startingDelivery, setStartingDelivery] = useState(false);
-    const [deliveryError, setDeliveryError] = useState<string | null>(null);
-
-    const startDelivery = async () => {
-        if (!checkout || !address.trim()) return;
-        setStartingDelivery(true);
-        setDeliveryError(null);
-        try {
-            const token = localStorage.getItem("token");
-            const res = await fetch("/api/delivery/start", {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    order_id: checkout.order_id,
-                    address: address.trim(),
-                }),
-            });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.error || "Failed to start delivery tracking");
-            }
-            const trip = await res.json();
-            navigate(`/track/${trip.trip_id}`, { state: { trip } });
-        } catch (e) {
-            setDeliveryError(e instanceof Error ? e.message : "Failed to start delivery");
-            setStartingDelivery(false);
-        }
-    };
+    const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
 
     const customerId = user?.customerID;
 
@@ -258,90 +299,23 @@ const Checkout: React.FC = () => {
                         <div style={styles.successCard}>
                             <h1 style={styles.successTitle}>Payment Successful! ✓</h1>
                             <p style={styles.successText}>
-                                Your order has been placed successfully. You can track your
-                                delivery in real-time.
+                                Your order has been placed and is queued for delivery.
                             </p>
                             <div style={styles.successDetails}>
                                 {checkout && (
                                     <>
-                                        <p>
-                                            <strong>Order ID:</strong> {checkout.order_id}
-                                        </p>
-                                        <p>
-                                            <strong>Total Amount:</strong> $
-                                            {checkout.checkout.total_amount.toFixed(2)}
-                                        </p>
+                                        <p><strong>Order ID:</strong> {checkout.order_id}</p>
+                                        <p><strong>Total:</strong> ${checkout.checkout.total_amount.toFixed(2)}</p>
+                                        <p><strong>Delivery address:</strong> {address}</p>
                                     </>
                                 )}
                             </div>
-                            <div style={styles.addressBlock}>
-                                <label style={styles.label}>Delivery Address</label>
-                                {savedAddresses.length > 0 && (
-                                    <select
-                                        style={styles.addressSelect}
-                                        disabled={startingDelivery}
-                                        onChange={(e) => {
-                                            const id = Number(e.target.value);
-                                            if (!id) return;
-                                            const picked = savedAddresses.find((a) => a.id === id);
-                                            if (picked) {
-                                                setAddress(
-                                                    [
-                                                        picked.streetLine1,
-                                                        picked.streetLine2,
-                                                        `${picked.city}, ${picked.state} ${picked.postalCode}`,
-                                                    ]
-                                                        .filter(Boolean)
-                                                        .join(", ")
-                                                );
-                                            }
-                                        }}
-                                        value={
-                                            savedAddresses.find((a) =>
-                                                address.startsWith(a.streetLine1)
-                                            )?.id ?? ""
-                                        }
-                                    >
-                                        <option value="">— Use a saved address —</option>
-                                        {savedAddresses.map((a) => (
-                                            <option key={a.id} value={a.id}>
-                                                {a.label}{a.isDefault ? " (default)" : ""} — {a.streetLine1}, {a.city}
-                                            </option>
-                                        ))}
-                                    </select>
-                                )}
-                                <input
-                                    type="text"
-                                    value={address}
-                                    onChange={(e) => setAddress(e.target.value)}
-                                    placeholder="e.g. 1 Washington Sq, San Jose, CA 95192"
-                                    style={styles.addressInput}
-                                    disabled={startingDelivery}
-                                />
-                                {deliveryError && (
-                                    <div style={styles.errorMessage}>{deliveryError}</div>
-                                )}
-                                <button
-                                    onClick={startDelivery}
-                                    disabled={!address.trim() || startingDelivery}
-                                    style={{
-                                        ...styles.successButton,
-                                        opacity: !address.trim() || startingDelivery ? 0.6 : 1,
-                                        cursor:
-                                            !address.trim() || startingDelivery
-                                                ? "not-allowed"
-                                                : "pointer",
-                                    }}
-                                >
-                                    {startingDelivery ? "Starting..." : "Track Delivery"}
-                                </button>
-                                <button
-                                    onClick={() => navigate("/orders")}
-                                    style={styles.secondaryButton}
-                                >
-                                    Skip — View My Orders
-                                </button>
-                            </div>
+                            <button
+                                onClick={() => navigate("/orders")}
+                                style={styles.successButton}
+                            >
+                                View My Orders
+                            </button>
                         </div>
                     </div>
                 </main>
@@ -433,12 +407,17 @@ const Checkout: React.FC = () => {
                             </div>
 
                             <div style={styles.paymentSection}>
-                                <h2 style={styles.sectionTitle}>Payment Details</h2>
+                                <h2 style={styles.sectionTitle}>Delivery & Payment</h2>
                                 <Elements stripe={stripePromise}>
                                     <CheckoutForm
                                         clientSecret={checkout.payment_intent.client_secret}
                                         orderId={checkout.order_id}
                                         onSuccess={() => setPaymentSuccess(true)}
+                                        address={address}
+                                        setAddress={setAddress}
+                                        savedAddresses={savedAddresses}
+                                        selectedAddressId={selectedAddressId}
+                                        setSelectedAddressId={setSelectedAddressId}
                                     />
                                 </Elements>
                             </div>
