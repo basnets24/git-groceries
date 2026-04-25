@@ -7,7 +7,8 @@ const Footer: React.FC = () => {
       <div style={styles.container}>
         <div style={styles.section}>
           <h3 style={styles.heading}>OFS - Organic Food Store</h3>
-          <p style={styles.text}></p>
+          <p style={styles.text}>Downtown San Jose, CA</p>
+          <p style={styles.text}>1 Washington Sq, San Jose, CA 95192</p>
         </div>
         <div style={styles.section}>
           <h4 style={styles.subHeading}>Quick Links</h4>
