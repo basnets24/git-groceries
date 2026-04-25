@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 interface Product {
@@ -22,6 +22,7 @@ interface Category {
 
 const Catalog: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
+  const location = useLocation();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
@@ -180,6 +181,16 @@ const Catalog: React.FC = () => {
       fetchCart();
     }
   }, [authLoading, fetchCategories, fetchProducts, fetchCart, selectedCategories, minPrice, maxPrice, minWeight, maxWeight]);
+
+  useEffect(() => {
+    if (categories.length === 0) return;
+    const params = new URLSearchParams(location.search).getAll("category");
+    if (params.length === 0) return;
+    const matched = categories
+      .filter((c) => params.some((p) => p.toLowerCase() === c.name.toLowerCase()))
+      .map((c) => c.id);
+    if (matched.length > 0) setSelectedCategories(matched);
+  }, [categories, location.search]);
 
   const handleCategoryToggle = (categoryId: number) => {
     setSelectedCategories((prev) =>
