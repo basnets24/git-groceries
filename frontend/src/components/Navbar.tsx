@@ -14,30 +14,32 @@ const Navbar: React.FC = () => {
           OFS
         </Link>
         <div style={styles.navLinks}>
-          <Link to="/delivery" style={styles.link}>
-            Delivery
-          </Link>
-          <Link to="/catalog" style={styles.link}>
-            Catalog
-          </Link>
-          <Link to="/cart" style={styles.link}>
-            Cart
-          </Link>
-          <Link to="/orders" style={styles.link}>
-            Orders
-          </Link>
           {user && (
-            <Link to="/profile" style={styles.link}>
-              Profile
-            </Link>
-          )}
-          <Link to="/about" style={styles.link}>
-            About
-          </Link>
-          {isStaff && (
-            <Link to="/admin" style={styles.link}>
-              Admin
-            </Link>
+            <>
+              <Link to="/delivery" style={styles.link}>
+                Delivery
+              </Link>
+              <Link to="/catalog" style={styles.link}>
+                Catalog
+              </Link>
+              <Link to="/cart" style={styles.link}>
+                Cart
+              </Link>
+              <Link to="/orders" style={styles.link}>
+                Orders
+              </Link>
+              <Link to="/profile" style={styles.link}>
+                Profile
+              </Link>
+              <Link to="/about" style={styles.link}>
+                About
+              </Link>
+              {isStaff && (
+                <Link to="/admin" style={styles.link}>
+                  Admin
+                </Link>
+              )}
+            </>
           )}
           <div style={styles.authLinks}>
             {user && (
