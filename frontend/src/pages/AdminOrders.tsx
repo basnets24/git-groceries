@@ -1,7 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Link, Navigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
+
+const STATUS_LABELS: Record<string, string> = {
+  ALL: "All",
+  INPROGRESS: "In Progress",
+  COMPLETED: "Completed",
+  REFUNDED: "Refunded",
+  VOID: "Void",
+};
 
 interface AdminOrder {
     order_id: number;
@@ -21,6 +29,7 @@ const AdminOrders: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [filter, setFilter] = useState<string>("ALL");
+    const [search, setSearch] = useState("");
 
     useEffect(() => {
         if (authLoading) return;
@@ -46,11 +55,29 @@ const AdminOrders: React.FC = () => {
             .finally(() => setLoading(false));
     }, [authLoading]);
 
+    const statusCounts = useMemo(() => {
+        const counts: Record<string, number> = { ALL: orders.length };
+        for (const o of orders) {
+            counts[o.status] = (counts[o.status] ?? 0) + 1;
+        }
+        return counts;
+    }, [orders]);
+
+    const visibleOrders = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        return orders.filter((o) => {
+            const matchesStatus = filter === "ALL" || o.status === filter;
+            const matchesSearch = !q ||
+                o.customer.username.toLowerCase().includes(q) ||
+                o.customer.email.toLowerCase().includes(q) ||
+                String(o.order_id).includes(q);
+            return matchesStatus && matchesSearch;
+        });
+    }, [orders, filter, search]);
+
     if (!authLoading && (!user || user.role === "CUSTOMER")) {
         return <Navigate to="/" replace />;
     }
-
-    const visibleOrders = filter === "ALL" ? orders : orders.filter((o) => o.status === filter);
 
     return (
         <div style={styles.page}>
@@ -75,17 +102,36 @@ const AdminOrders: React.FC = () => {
                                     color: filter === s ? "#ffffff" : "#495057",
                                 }}
                             >
-                                {s}
+                                {STATUS_LABELS[s]}
+                                {statusCounts[s] !== undefined && (
+                                    <span style={{
+                                        ...styles.filterCount,
+                                        backgroundColor: filter === s ? "rgba(255,255,255,0.2)" : "#d0d0d0",
+                                        color: filter === s ? "#ffffff" : "#495057",
+                                    }}>
+                                        {statusCounts[s] ?? 0}
+                                    </span>
+                                )}
                             </button>
                         ))}
                     </div>
                 </header>
 
+                <input
+                    type="text"
+                    placeholder="Search by customer name, email, or order #..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    style={styles.searchInput}
+                />
+
                 {loading && <p style={styles.loading}>Loading orders...</p>}
                 {error && <div style={styles.errorBox}>{error}</div>}
 
                 {!loading && !error && visibleOrders.length === 0 && (
-                    <div style={styles.empty}>No orders match the selected filter.</div>
+                    <div style={styles.empty}>
+                        {search.trim() ? "No orders match your search." : "No orders match the selected filter."}
+                    </div>
                 )}
 
                 {!loading && !error && visibleOrders.length > 0 && (
@@ -123,7 +169,7 @@ const AdminOrders: React.FC = () => {
                                         <td style={styles.td}>{o.payment_status || "—"}</td>
                                         <td style={styles.td}>
                                             <span style={styles[`status_${o.status}` as keyof typeof styles] || styles.statusGeneric}>
-                                                {o.status}
+                                                {STATUS_LABELS[o.status] ?? o.status}
                                             </span>
                                         </td>
                                         <td style={styles.td}>
@@ -157,6 +203,22 @@ const styles: { [key: string]: React.CSSProperties } = {
         borderRadius: 12,
         boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
         marginBottom: "1.5rem",
+    },
+    searchInput: {
+        width: "100%",
+        padding: "0.85rem 1rem",
+        border: "1px solid #ced4da",
+        borderRadius: 8,
+        fontSize: "0.95rem",
+        marginBottom: "1rem",
+        boxSizing: "border-box",
+    },
+    filterCount: {
+        marginLeft: "0.4rem",
+        padding: "0.1rem 0.45rem",
+        borderRadius: 999,
+        fontSize: "0.75rem",
+        fontWeight: 700,
     },
     eyebrow: {
         letterSpacing: "0.3em",
