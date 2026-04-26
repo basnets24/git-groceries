@@ -5,6 +5,7 @@ from db import get_db_connection
 from exceptions import NotFoundError, ValidationError
 from modules.cart import services as cart_services
 from modules.cart.repository import fetch_inprogress_order
+from modules.delivery.services import validate_delivery_zone
 
 
 def _format_decimal(value: Decimal) -> float:
@@ -64,6 +65,10 @@ def create_checkout_session(customer_id: int) -> Dict:
 
 def complete_order(order_id: int, customer_id: int, street: str = "", city: str = "", state: str = "", zip_code: str = "") -> None:
     """Finalize an order and persist payment/inventory side-effects."""
+    if street:
+        full_address = ", ".join(p for p in [street, city, state, zip_code] if p)
+        validate_delivery_zone(full_address)
+
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
@@ -80,7 +85,7 @@ def complete_order(order_id: int, customer_id: int, street: str = "", city: str 
         if row is None:
             raise NotFoundError("Order not found")
 
-        if row[0] == "COMPLETED":
+        if row[0] == "PAID":
             conn.commit()
             return
 
@@ -116,7 +121,7 @@ def complete_order(order_id: int, customer_id: int, street: str = "", city: str 
         cursor.execute(
             """
             UPDATE ShoppingOrder
-            SET Status = 'COMPLETED',
+            SET Status = 'PAID',
                 ReadyForDispatchAt = CURRENT_TIMESTAMP,
                 Street = %s,
                 City = %s,

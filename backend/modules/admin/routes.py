@@ -67,6 +67,15 @@ def auto_dispatch():
     return jsonify(fleet.auto_dispatch_expired()), 201
 
 
+@admin_bp.route("/api/admin/trips/<int:trip_id>", methods=["GET"])
+@roles_required(UserRole.EMPLOYEE, UserRole.MANAGER, UserRole.SUPERADMIN)
+def get_trip(trip_id: int):
+    trip = fleet.fetch_trip(trip_id)
+    if trip is None:
+        raise NotFoundError(f"Trip {trip_id} not found")
+    return jsonify(trip), 200
+
+
 @admin_bp.route("/api/admin/revenue", methods=["GET"])
 @roles_required(UserRole.EMPLOYEE, UserRole.MANAGER, UserRole.SUPERADMIN)
 def get_revenue():

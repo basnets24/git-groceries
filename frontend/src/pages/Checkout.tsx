@@ -54,8 +54,10 @@ interface CheckoutFormProps {
     clientSecret: string;
     orderId: number;
     onSuccess: () => void;
-    address: string;
-    setAddress: (v: string) => void;
+    street: string; setStreet: (v: string) => void;
+    city: string;   setCity:   (v: string) => void;
+    state: string;  setState:  (v: string) => void;
+    zip: string;    setZip:    (v: string) => void;
     savedAddresses: SavedAddress[];
     selectedAddressId: number | null;
     setSelectedAddressId: (id: number | null) => void;
@@ -65,8 +67,10 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
     clientSecret,
     orderId,
     onSuccess,
-    address,
-    setAddress,
+    street, setStreet,
+    city,   setCity,
+    state,  setState,
+    zip,    setZip,
     savedAddresses,
     selectedAddressId,
     setSelectedAddressId,
@@ -76,17 +80,32 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
     const [error, setError] = useState<string | null>(null);
     const [processing, setProcessing] = useState(false);
 
+    const fullAddress = [street, city, state, zip].filter(Boolean).join(", ");
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!stripe || !elements) return;
 
-        if (!address.trim()) {
-            setError("Please enter a delivery address");
+        if (!street.trim() || !city.trim() || !state.trim() || !zip.trim()) {
+            setError("Please fill in all address fields");
             return;
         }
 
         setProcessing(true);
         setError(null);
+
+        const token = localStorage.getItem("token");
+        const zoneRes = await fetch("/api/delivery/validate-zone", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ address: fullAddress }),
+        });
+        if (!zoneRes.ok) {
+            const zoneData = await zoneRes.json().catch(() => ({}));
+            setError(zoneData.error || "Delivery address is outside our service area");
+            setProcessing(false);
+            return;
+        }
 
         const { error: confirmError } = await stripe.confirmCardPayment(clientSecret, {
             payment_method: {
@@ -102,29 +121,13 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
         }
 
         try {
-            const token = localStorage.getItem("token");
-
-            let street = address.trim();
-            let city = "";
-            let state = "";
-            let zip = "";
-            if (selectedAddressId !== null) {
-                const saved = savedAddresses.find((a) => a.id === selectedAddressId);
-                if (saved) {
-                    street = [saved.streetLine1, saved.streetLine2].filter(Boolean).join(", ");
-                    city = saved.city;
-                    state = saved.state;
-                    zip = saved.postalCode;
-                }
-            }
-
             const completeResponse = await fetch(`/api/orders/${orderId}/complete`, {
                 method: "POST",
                 headers: {
                     Authorization: `Bearer ${token}`,
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ street, city, state, zip }),
+                body: JSON.stringify({ street: street.trim(), city: city.trim(), state: state.trim(), zip: zip.trim() }),
             });
             if (!completeResponse.ok) {
                 const payload = await completeResponse.json().catch(() => ({}));
@@ -142,6 +145,22 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
         }
     };
 
+    const handleSavedAddressChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const id = Number(e.target.value) || null;
+        setSelectedAddressId(id);
+        if (id) {
+            const saved = savedAddresses.find((a) => a.id === id);
+            if (saved) {
+                setStreet([saved.streetLine1, saved.streetLine2].filter(Boolean).join(", "));
+                setCity(saved.city);
+                setState(saved.state);
+                setZip(saved.postalCode);
+            }
+        }
+    };
+
+    const clearSaved = () => setSelectedAddressId(null);
+
     return (
         <form onSubmit={handleSubmit} style={styles.form}>
             <div style={styles.cardContainer}>
@@ -150,20 +169,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
                     <select
                         style={styles.addressSelect}
                         value={selectedAddressId ?? ""}
-                        onChange={(e) => {
-                            const id = Number(e.target.value) || null;
-                            setSelectedAddressId(id);
-                            if (id) {
-                                const saved = savedAddresses.find((a) => a.id === id);
-                                if (saved) {
-                                    setAddress(
-                                        [saved.streetLine1, saved.streetLine2, `${saved.city}, ${saved.state} ${saved.postalCode}`]
-                                            .filter(Boolean)
-                                            .join(", ")
-                                    );
-                                }
-                            }
-                        }}
+                        onChange={handleSavedAddressChange}
                     >
                         <option value="">— Select a saved address —</option>
                         {savedAddresses.map((a) => (
@@ -175,14 +181,36 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
                 )}
                 <input
                     type="text"
-                    value={address}
-                    onChange={(e) => {
-                        setAddress(e.target.value);
-                        setSelectedAddressId(null);
-                    }}
-                    placeholder="e.g. 1 Washington Sq, San Jose, CA 95192"
+                    value={street}
+                    onChange={(e) => { setStreet(e.target.value); clearSaved(); }}
+                    placeholder="Street address"
                     style={styles.addressInput}
                 />
+                <div style={styles.addressRow}>
+                    <input
+                        type="text"
+                        value={city}
+                        onChange={(e) => { setCity(e.target.value); clearSaved(); }}
+                        placeholder="City"
+                        style={{ ...styles.addressInput, flex: 2, marginBottom: 0 }}
+                    />
+                    <input
+                        type="text"
+                        value={state}
+                        onChange={(e) => { setState(e.target.value.toUpperCase().slice(0, 2)); clearSaved(); }}
+                        placeholder="State"
+                        style={{ ...styles.addressInput, flex: 1, marginBottom: 0 }}
+                        maxLength={2}
+                    />
+                    <input
+                        type="text"
+                        value={zip}
+                        onChange={(e) => { setZip(e.target.value); clearSaved(); }}
+                        placeholder="ZIP"
+                        style={{ ...styles.addressInput, flex: 1, marginBottom: 0 }}
+                        maxLength={10}
+                    />
+                </div>
             </div>
             <div style={styles.cardContainer}>
                 <label style={styles.label}>Card Details</label>
@@ -218,7 +246,10 @@ const Checkout: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [paymentSuccess, setPaymentSuccess] = useState(false);
-    const [address, setAddress] = useState("");
+    const [street, setStreet] = useState("");
+    const [city, setCity] = useState("");
+    const [addrState, setAddrState] = useState("");
+    const [zip, setZip] = useState("");
     const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
     const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
 
@@ -263,15 +294,11 @@ const Checkout: React.FC = () => {
                     setSavedAddresses(addresses);
                     const defaultAddr = addresses.find((a) => a.isDefault);
                     if (defaultAddr) {
-                        setAddress(
-                            [
-                                defaultAddr.streetLine1,
-                                defaultAddr.streetLine2,
-                                `${defaultAddr.city}, ${defaultAddr.state} ${defaultAddr.postalCode}`,
-                            ]
-                                .filter(Boolean)
-                                .join(", ")
-                        );
+                        setStreet([defaultAddr.streetLine1, defaultAddr.streetLine2].filter(Boolean).join(", "));
+                        setCity(defaultAddr.city);
+                        setAddrState(defaultAddr.state);
+                        setZip(defaultAddr.postalCode);
+                        setSelectedAddressId(defaultAddr.id);
                     }
                 }
             } catch (err) {
@@ -306,7 +333,7 @@ const Checkout: React.FC = () => {
                                     <>
                                         <p><strong>Order ID:</strong> {checkout.order_id}</p>
                                         <p><strong>Total:</strong> ${checkout.checkout.total_amount.toFixed(2)}</p>
-                                        <p><strong>Delivery address:</strong> {address}</p>
+                                        <p><strong>Delivery address:</strong> {[street, city, addrState, zip].filter(Boolean).join(", ")}</p>
                                     </>
                                 )}
                             </div>
@@ -413,8 +440,10 @@ const Checkout: React.FC = () => {
                                         clientSecret={checkout.payment_intent.client_secret}
                                         orderId={checkout.order_id}
                                         onSuccess={() => setPaymentSuccess(true)}
-                                        address={address}
-                                        setAddress={setAddress}
+                                        street={street}       setStreet={setStreet}
+                                        city={city}           setCity={setCity}
+                                        state={addrState}     setState={setAddrState}
+                                        zip={zip}             setZip={setZip}
                                         savedAddresses={savedAddresses}
                                         selectedAddressId={selectedAddressId}
                                         setSelectedAddressId={setSelectedAddressId}
@@ -679,8 +708,13 @@ const styles: { [key: string]: React.CSSProperties } = {
         border: "1px solid #ced4da",
         borderRadius: 6,
         fontSize: "1rem",
-        marginBottom: "1rem",
+        marginBottom: "0.5rem",
         boxSizing: "border-box",
+    },
+    addressRow: {
+        display: "flex",
+        gap: "0.5rem",
+        marginTop: "0.5rem",
     },
 };
 
