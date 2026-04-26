@@ -4,11 +4,13 @@ import Navbar from "../components/Navbar";
 import { useAuth } from "../context/AuthContext";
 
 const STATUS_LABELS: Record<string, string> = {
-  ALL: "All",
+  ALL:        "All",
   INPROGRESS: "In Progress",
-  COMPLETED: "Completed",
-  REFUNDED: "Refunded",
-  VOID: "Void",
+  PAID:       "Paid",
+  DISPATCHED: "Dispatched",
+  DELIVERED:  "Delivered",
+  REFUNDED:   "Refunded",
+  VOID:       "Void",
 };
 
 interface AdminOrder {
@@ -92,7 +94,7 @@ const AdminOrders: React.FC = () => {
                         </p>
                     </div>
                     <div style={styles.filterRow}>
-                        {["ALL", "INPROGRESS", "COMPLETED", "REFUNDED", "VOID"].map((s) => (
+                        {["ALL", "INPROGRESS", "PAID", "DISPATCHED", "DELIVERED", "REFUNDED", "VOID"].map((s) => (
                             <button
                                 key={s}
                                 onClick={() => setFilter(s)}
@@ -293,7 +295,23 @@ const styles: { [key: string]: React.CSSProperties } = {
         backgroundColor: "#fff3cd",
         color: "#856404",
     },
-    status_COMPLETED: {
+    status_PAID: {
+        padding: "0.2rem 0.6rem",
+        borderRadius: 999,
+        fontSize: "0.75rem",
+        fontWeight: 600,
+        backgroundColor: "#e2eafc",
+        color: "#1d3557",
+    },
+    status_DISPATCHED: {
+        padding: "0.2rem 0.6rem",
+        borderRadius: 999,
+        fontSize: "0.75rem",
+        fontWeight: 600,
+        backgroundColor: "#ffe8cc",
+        color: "#7d4e00",
+    },
+    status_DELIVERED: {
         padding: "0.2rem 0.6rem",
         borderRadius: 999,
         fontSize: "0.75rem",

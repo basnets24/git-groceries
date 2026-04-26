@@ -41,7 +41,7 @@ def fetch_customer_orders(customer_id: int) -> List[Dict]:
         LEFT JOIN Payment p ON so.ShoppingOrderID = p.ShoppingOrderID
         LEFT JOIN ShoppingOrderItem soi ON so.ShoppingOrderID = soi.ShoppingOrderID
         LEFT JOIN Product prod ON soi.ProductID = prod.ProductID
-        WHERE so.UserID = %s AND so.Status = 'COMPLETED'
+        WHERE so.UserID = %s AND so.Status IN ('PAID', 'DISPATCHED', 'DELIVERED')
         GROUP BY so.ShoppingOrderID
         ORDER BY so.ShoppingOrderID DESC
         """,
@@ -81,7 +81,7 @@ def fetch_customer_orders(customer_id: int) -> List[Dict]:
             },
             "total_amount": float(row["total_amount"]) if row["total_amount"] else 0.0,
             "payment_status": row["payment_status"],
-            "order_date": row["order_date"].isoformat() if row["order_date"] else None,
+            "order_date": row["order_date"].isoformat() + "Z" if row["order_date"] else None,
             "items": items
         })
 

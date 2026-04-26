@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -18,6 +18,11 @@ interface TripSummary {
     finished: boolean;
 }
 
+interface PendingOrder {
+    order_id: number;
+    address: string;
+}
+
 const POLL_MS = 3000;
 
 function formatEta(sec: number): string {
@@ -31,8 +36,10 @@ const Delivery: React.FC = () => {
     const { user, loading: authLoading } = useAuth();
     const navigate = useNavigate();
     const [trips, setTrips] = useState<TripSummary[]>([]);
+    const [pending, setPending] = useState<PendingOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const completedTripIds = useRef<Set<number>>(new Set());
 
     useEffect(() => {
         if (authLoading) return;
@@ -49,10 +56,27 @@ const Delivery: React.FC = () => {
                 });
                 if (!res.ok) throw new Error("Failed to load deliveries");
                 const data = await res.json();
-                setTrips(data.trips || []);
+                const trips: TripSummary[] = data.trips || [];
+                const pending: PendingOrder[] = data.pending || [];
+                setTrips(trips);
+                setPending(pending);
                 setError(null);
+
+                for (const trip of trips) {
+                    if (trip.finished && !completedTripIds.current.has(trip.trip_id)) {
+                        completedTripIds.current.add(trip.trip_id);
+                        fetch(`/api/delivery/${trip.trip_id}/complete`, {
+                            method: "POST",
+                            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                            body: JSON.stringify({ order_id: trip.order_id }),
+                        });
+                    }
+                }
+
+                return { trips, pending };
             } catch (e) {
                 setError(e instanceof Error ? e.message : "Failed to load deliveries");
+                return { trips: [], pending: [] };
             } finally {
                 setLoading(false);
             }
@@ -60,11 +84,9 @@ const Delivery: React.FC = () => {
 
         fetchTrips();
         const id = setInterval(() => {
-            fetchTrips().then(() => {
-                setTrips((current) => {
-                    if (!current.some((t) => !t.finished)) clearInterval(id);
-                    return current;
-                });
+            fetchTrips().then(({ trips, pending }) => {
+                const hasActiveWork = trips.some((t) => !t.finished) || pending.length > 0;
+                if (!hasActiveWork) clearInterval(id);
             });
         }, POLL_MS);
         return () => clearInterval(id);
@@ -112,7 +134,7 @@ const Delivery: React.FC = () => {
                         </div>
                     )}
 
-                    {user && !loading && !error && trips.length === 0 && (
+                    {user && !loading && !error && trips.length === 0 && pending.length === 0 && (
                         <div style={styles.empty}>
                             <p style={styles.text}>No deliveries yet</p>
                             <p style={styles.subtext}>
@@ -121,9 +143,28 @@ const Delivery: React.FC = () => {
                         </div>
                     )}
 
-                    {user && !loading && trips.length > 0 && (() => {
+                    {user && !loading && (() => {
                         const active = trips.filter((t) => !t.finished);
                         const past = trips.filter((t) => t.finished);
+
+                        const renderPendingCard = (order: PendingOrder) => (
+                            <div key={order.order_id} style={styles.card}>
+                                <div style={styles.cardHeader}>
+                                    <h2 style={styles.cardTitle}>Order #{order.order_id}</h2>
+                                    <span style={{ ...styles.badge, backgroundColor: "#e2eafc", color: "#1d3557" }}>
+                                        Pending Dispatch
+                                    </span>
+                                </div>
+                                {order.address && (
+                                    <p style={styles.addressLine}>
+                                        <strong>To:</strong> {order.address}
+                                    </p>
+                                )}
+                                <p style={styles.subtext}>
+                                    Your order is packed and waiting to be assigned to a delivery robot.
+                                </p>
+                            </div>
+                        );
 
                         const renderActiveCard = (trip: TripSummary) => (
                             <div key={trip.trip_id} style={styles.card}>
@@ -161,8 +202,16 @@ const Delivery: React.FC = () => {
                             </div>
                         );
 
+                        if (pending.length === 0 && active.length === 0 && past.length === 0) return null;
+
                         return (
                             <>
+                                {pending.length > 0 && (
+                                    <section style={styles.section}>
+                                        <h2 style={styles.sectionTitle}>Pending Dispatch</h2>
+                                        <div style={styles.list}>{pending.map(renderPendingCard)}</div>
+                                    </section>
+                                )}
                                 {active.length > 0 && (
                                     <section style={styles.section}>
                                         <h2 style={styles.sectionTitle}>Active Deliveries</h2>

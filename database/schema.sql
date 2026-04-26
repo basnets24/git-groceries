@@ -48,7 +48,7 @@ CREATE TABLE ShoppingOrder (
     City        VARCHAR(75)     NOT NULL,
     State       VARCHAR(2)      NOT NULL,
     Zip         VARCHAR(10)     NOT NULL,
-    Status      ENUM('INPROGRESS', 'COMPLETED','REFUNDED','VOID') NOT NULL DEFAULT 'INPROGRESS',
+    Status      ENUM('INPROGRESS','PAID','DISPATCHED','DELIVERED','REFUNDED','VOID') NOT NULL DEFAULT 'INPROGRESS',
     ReadyForDispatchAt DATETIME NULL,
 
     FOREIGN KEY (UserID) REFERENCES `User`(UserID)
@@ -100,6 +100,7 @@ CREATE TABLE Robot (
     CurrentLat     DECIMAL(10,7)   NOT NULL,
     CurrentLng     DECIMAL(10,7)   NOT NULL,
     CurrentTripID  INT             NULL,
+    ReturnETA      DATETIME        NULL,
     UpdatedAt      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
                     ON UPDATE CURRENT_TIMESTAMP
 );

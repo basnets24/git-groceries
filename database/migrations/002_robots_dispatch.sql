@@ -8,6 +8,7 @@ CREATE TABLE Robot (
     CurrentLat     DECIMAL(10,7)   NOT NULL,
     CurrentLng     DECIMAL(10,7)   NOT NULL,
     CurrentTripID  INT             NULL,
+    ReturnETA      DATETIME        NULL,
     UpdatedAt      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
                     ON UPDATE CURRENT_TIMESTAMP
 );

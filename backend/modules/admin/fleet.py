@@ -63,7 +63,21 @@ def complete_finished_trips() -> int:
             """,
             (ROBOT_ORIGIN_LAT, ROBOT_ORIGIN_LNG),
         )
-        # Mark all elapsed INPROGRESS trips COMPLETED 
+        # Mark DISPATCHED orders as DELIVERED on trips whose full duration has elapsed
+        cursor.execute(
+            """
+            UPDATE ShoppingOrder so
+            JOIN TripStop ts ON ts.ShoppingOrderID = so.ShoppingOrderID
+            JOIN DeliveryTrip dt ON dt.DeliveryTripID = ts.DeliveryTripID
+            SET so.Status = 'DELIVERED'
+            WHERE dt.Status = 'INPROGRESS'
+              AND dt.StartedAt IS NOT NULL
+              AND dt.DurationSec IS NOT NULL
+              AND DATE_ADD(dt.StartedAt, INTERVAL dt.DurationSec SECOND) <= NOW()
+              AND so.Status = 'DISPATCHED'
+            """
+        )
+        # Mark all elapsed INPROGRESS trips COMPLETED
         cursor.execute(
             """
             UPDATE DeliveryTrip
@@ -75,8 +89,96 @@ def complete_finished_trips() -> int:
             """
         )
         count = cursor.rowcount
+        # Transition RETURNING robots to IDLE once they've arrived back at base
+        cursor.execute(
+            """
+            UPDATE Robot
+            SET Status = 'IDLE',
+                CurrentTripID = NULL,
+                ReturnETA = NULL,
+                CurrentLat = %s,
+                CurrentLng = %s
+            WHERE Status = 'RETURNING'
+              AND ReturnETA IS NOT NULL
+              AND ReturnETA <= NOW()
+            """,
+            (ROBOT_ORIGIN_LAT, ROBOT_ORIGIN_LNG),
+        )
         conn.commit()
         return count
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def fetch_trip(trip_id: int) -> Optional[Dict]:
+    """Return full trip detail in the same shape confirm_dispatch returns."""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT
+                dt.DeliveryTripID  AS trip_id,
+                dt.RobotID         AS robot_id,
+                dt.Polyline        AS polyline,
+                dt.DistanceM       AS distance_m,
+                dt.DurationSec     AS duration_sec,
+                dt.StartedAt       AS started_at
+            FROM DeliveryTrip dt
+            WHERE dt.DeliveryTripID = %s
+            """,
+            (trip_id,),
+        )
+        trip_row = cursor.fetchone()
+        if trip_row is None:
+            return None
+
+        cursor.execute(
+            """
+            SELECT
+                ts.StopIndex    AS stop_index,
+                ts.ShoppingOrderID AS order_id,
+                ts.ETA          AS eta,
+                COALESCE(NULLIF(so.Street,''), ca.StreetLine1, '') AS street,
+                COALESCE(NULLIF(so.City,  ''), ca.City,        '') AS city,
+                COALESCE(NULLIF(so.State, ''), ca.State,       '') AS state,
+                COALESCE(NULLIF(so.Zip,   ''), ca.PostalCode,  '') AS zip
+            FROM TripStop ts
+            JOIN ShoppingOrder so ON so.ShoppingOrderID = ts.ShoppingOrderID
+            LEFT JOIN CustomerProfile cp ON cp.UserID = so.UserID
+            LEFT JOIN CustomerAddress ca ON ca.CustomerAddressID = cp.DefaultAddressID
+            WHERE ts.DeliveryTripID = %s
+            ORDER BY ts.StopIndex ASC
+            """,
+            (trip_id,),
+        )
+        stop_rows = cursor.fetchall()
+
+        started_at = trip_row["started_at"]
+        stops = []
+        prev_eta = started_at
+        for row in stop_rows:
+            eta = row["eta"]
+            leg_sec = int((eta - prev_eta).total_seconds()) if eta and prev_eta else 600
+            prev_eta = eta
+            address = ", ".join(p for p in [row["street"], row["city"], row["state"], row["zip"]] if p)
+            stops.append({
+                "stop_index": row["stop_index"],
+                "order_id": row["order_id"],
+                "address": address,
+                "eta": (eta.isoformat() + "Z") if eta else None,
+                "leg_duration_sec": leg_sec,
+            })
+
+        return {
+            "trip_id": trip_row["trip_id"],
+            "robot_id": trip_row["robot_id"],
+            "polyline": trip_row["polyline"],
+            "distance_m": trip_row["distance_m"] or 0,
+            "duration_sec": trip_row["duration_sec"] or 0,
+            "stops": stops,
+        }
     finally:
         cursor.close()
         conn.close()
@@ -112,7 +214,7 @@ def list_fleet() -> List[Dict]:
             "lat": float(row["lat"]),
             "lng": float(row["lng"]),
             "trip_id": row["trip_id"],
-            "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+            "updated_at": row["updated_at"].isoformat() + "Z" if row["updated_at"] else None,
         }
         for row in rows
     ]
@@ -143,7 +245,7 @@ def _fetch_pending_rows() -> List[Dict]:
         LEFT JOIN CustomerAddress ca     ON ca.CustomerAddressID = cp.DefaultAddressID
         LEFT JOIN ShoppingOrderItem soi  ON soi.ShoppingOrderID = so.ShoppingOrderID
         LEFT JOIN TripStop ts            ON ts.ShoppingOrderID  = so.ShoppingOrderID
-        WHERE so.Status = 'COMPLETED' AND ts.ShoppingOrderID IS NULL
+        WHERE so.Status = 'PAID' AND ts.ShoppingOrderID IS NULL
         GROUP BY so.ShoppingOrderID
         ORDER BY so.ReadyForDispatchAt ASC, so.ShoppingOrderID ASC
         """
@@ -203,7 +305,7 @@ def list_pending_orders() -> List[Dict]:
                 },
                 "total_weight": float(row["total_weight"] or 0.0),
                 "subtotal": float(row["subtotal"] or 0.0),
-                "ready_at": ready_at.isoformat() if ready_at else None,
+                "ready_at": ready_at.isoformat() + "Z" if ready_at else None,
                 "seconds_since_ready": seconds_since_ready,
                 "seconds_until_auto_dispatch": seconds_until_auto,
                 "auto_dispatch_ready": (
@@ -379,7 +481,7 @@ def _build_trip(
                 "address": _format_address(
                     order["street"], order["city"], order["state"], order["zip"]
                 ),
-                "eta": running_eta.isoformat(),
+                "eta": running_eta.isoformat() + "Z",
                 "leg_duration_sec": leg_duration_sec,
             }
         )
@@ -391,6 +493,13 @@ def _build_trip(
         WHERE RobotID = %s
         """,
         (trip_id, robot_id),
+    )
+
+    order_ids_in_trip = [o["order_id"] for o in order_rows]
+    placeholders = ",".join(["%s"] * len(order_ids_in_trip))
+    cursor.execute(
+        f"UPDATE ShoppingOrder SET Status = 'DISPATCHED' WHERE ShoppingOrderID IN ({placeholders})",
+        tuple(order_ids_in_trip),
     )
 
     return {
