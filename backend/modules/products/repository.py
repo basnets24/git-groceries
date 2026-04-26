@@ -9,7 +9,7 @@ def fetch_all_categories() -> List[Dict]:
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
         """
-        SELECT ProductCategoryID AS id, Name AS name
+        SELECT ProductCategoryID AS id, Name AS name, Description AS description
         FROM ProductCategory
         ORDER BY Name
         """

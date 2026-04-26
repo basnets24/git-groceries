@@ -4,6 +4,8 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
 
+// ── Types ────────────────────────────────────────────────────────────────────
+
 interface Order {
   order_id: number;
   status: string;
@@ -12,42 +14,113 @@ interface Order {
   items: { quantity: number; name: string }[];
 }
 
-const categories = [
-  { name: "Fruits", description: "Fresh seasonal fruits" },
+interface Category {
+  id: number;
+  name: string;
+  description: string | null;
+}
+
+// ── Static data ───────────────────────────────────────────────────────────────
+
+const GUEST_CATEGORIES = [
+  { name: "Fruits",     description: "Fresh seasonal fruits" },
   { name: "Vegetables", description: "Farm-fresh vegetables" },
-  { name: "Dairy", description: "Milk, cheese & eggs" },
-  { name: "Meat", description: "Premium quality meats" },
-  { name: "Bakery", description: "Fresh baked goods" },
-  { name: "Beverages", description: "Juices & drinks" },
+  { name: "Dairy",      description: "Milk, cheese & eggs" },
+  { name: "Meat",       description: "Premium quality meats" },
+  { name: "Bakery",     description: "Fresh baked goods" },
+  { name: "Beverages",  description: "Juices & drinks" },
 ];
 
-const authCategories = [
-  { name: "Fresh Produce", description: "Fruits & farm-fresh vegetables", query: "?category=Fruits&category=Vegetables" },
-  { name: "Dairy", description: "Milk, cheese & eggs", query: "?category=Dairy" },
-  { name: "Meat", description: "Premium quality meats", query: "?category=Meat" },
-  { name: "Bakery", description: "Fresh baked goods", query: "?category=Bakery" },
-  { name: "Beverages", description: "Juices & drinks", query: "?category=Beverages" },
+const BENEFITS = [
+  { label: "100% Organic",               description: "No pesticides" },
+  { label: "Local Farmers",              description: "Sourced from nearby farms" },
+  { label: "Eco-Friendly",               description: "Sustainable packaging" },
+  { label: "Free Delivery Under 20 lbs", description: "No fees on light orders" },
+  { label: "Real-Time Bot Tracking",     description: "Watch your order arrive live" },
+  { label: "Same-Day Delivery",          description: "Order by noon, get it today" },
 ];
 
-const orderSteps = [
-  { step: 1, title: "Browse Products", description: "Explore our wide selection of organic products in the catalog" },
-  { step: 2, title: "Add to Cart", description: "Select your items and add them to your shopping cart" },
+const ORDER_STEPS = [
+  { step: 1, title: "Browse Products",    description: "Explore our wide selection of organic products in the catalog" },
+  { step: 2, title: "Add to Cart",        description: "Select your items and add them to your shopping cart" },
   { step: 3, title: "Checkout & Deliver", description: "Complete your order and we'll deliver fresh to your door" },
 ];
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function daysSince(dateStr: string): number {
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+}
+
+function formatDaysSince(dateStr: string): string {
+  const days = daysSince(dateStr);
+  if (days < 30) return `${days} day${days !== 1 ? "s" : ""}`;
+  const months = Math.floor(days / 30);
+  return months === 1 ? "about a month" : `${months} months`;
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+interface DeliveryNudgeProps {
+  lastDeliveryDate: string | null;
+  hasAnyOrder: boolean;
+}
+
+const DeliveryNudge: React.FC<DeliveryNudgeProps> = ({ lastDeliveryDate, hasAnyOrder }) => {
+  const days = lastDeliveryDate ? daysSince(lastDeliveryDate) : null;
+
+  if (days !== null && days >= 3) {
+    return (
+      <section style={styles.nudgeSection}>
+        <div style={styles.sectionContainer}>
+          <p style={styles.nudgeText}>
+            It's been <strong>{formatDaysSince(lastDeliveryDate!)}</strong> since your last delivery. Time to restock?
+          </p>
+          <Link to="/catalog" style={styles.shopButton}>Place an Order</Link>
+        </div>
+      </section>
+    );
+  }
+
+  if (!hasAnyOrder) {
+    return (
+      <section style={styles.nudgeSection}>
+        <div style={styles.sectionContainer}>
+          <p style={styles.nudgeText}>First time ordering? Browse the catalog and update your profile to get started.</p>
+          <div style={styles.nudgeActions}>
+            <Link to="/catalog" style={styles.shopButton}>Browse Catalog</Link>
+            <Link to="/profile" style={styles.nudgeSecondaryButton}>Update Profile</Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return null;
+};
+
+// ── Authenticated view ────────────────────────────────────────────────────────
+
 const AuthenticatedHome: React.FC = () => {
   const { user } = useAuth();
-  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
-  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [recentOrders, setRecentOrders]       = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading]     = useState(true);
+  const [apiCategories, setApiCategories]     = useState<Category[]>([]);
+  const [lastDeliveryDate, setLastDeliveryDate] = useState<string | null>(null);
+  const [hasAnyOrder, setHasAnyOrder]         = useState(false);
 
-  const fetchRecentOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async () => {
     const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!token) { setOrdersLoading(false); return; }
     try {
       const res = await fetch("/api/orders", { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) return;
       const data = await res.json();
-      setRecentOrders(data.orders.slice(0, 3));
+      const orders: Order[] = data.orders;
+      setRecentOrders(orders.slice(0, 3));
+      setHasAnyOrder(orders.length > 0);
+      // /api/orders only returns COMPLETED orders; first item is most recent delivery
+      setLastDeliveryDate(orders[0]?.order_date ?? null);
     } catch {
       // silently ignore
     } finally {
@@ -55,15 +128,28 @@ const AuthenticatedHome: React.FC = () => {
     }
   }, []);
 
+  const fetchCategories = useCallback(async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const res = await fetch("/api/categories", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const data = await res.json();
+      setApiCategories(data.categories ?? []);
+    } catch {
+      // silently ignore
+    }
+  }, []);
+
   useEffect(() => {
-    fetchRecentOrders();
-  }, [fetchRecentOrders]);
+    fetchOrders();
+    fetchCategories();
+  }, [fetchOrders, fetchCategories]);
 
   return (
     <div style={styles.pageContainer}>
       <Navbar />
 
-      {/* Welcome Banner */}
       <section style={styles.welcomeBanner}>
         <div style={styles.sectionContainer}>
           <h1 style={styles.welcomeTitle}>Welcome back, {user?.username}!</h1>
@@ -72,7 +158,10 @@ const AuthenticatedHome: React.FC = () => {
         </div>
       </section>
 
-      {/* Browse by Category */}
+      {!ordersLoading && (
+        <DeliveryNudge lastDeliveryDate={lastDeliveryDate} hasAnyOrder={hasAnyOrder} />
+      )}
+
       <section style={styles.section}>
         <div style={styles.sectionContainer}>
           <div style={styles.sectionHeader}>
@@ -80,17 +169,16 @@ const AuthenticatedHome: React.FC = () => {
             <Link to="/catalog" style={styles.seeAllLink}>See all →</Link>
           </div>
           <div style={styles.categoriesGrid}>
-            {authCategories.map((category) => (
-              <Link to={`/catalog${category.query}`} key={category.name} style={styles.categoryCard}>
-                <h3 style={styles.categoryName}>{category.name}</h3>
-                <p style={styles.categoryDescription}>{category.description}</p>
+            {apiCategories.map((cat) => (
+              <Link to={`/catalog?categories=${cat.id}`} key={cat.id} style={styles.categoryCard}>
+                <h3 style={styles.categoryName}>{cat.name}</h3>
+                {cat.description && <p style={styles.categoryDescription}>{cat.description}</p>}
               </Link>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Recent Orders */}
       <section style={styles.ordersSection}>
         <div style={styles.sectionContainer}>
           <div style={styles.sectionHeader}>
@@ -113,8 +201,10 @@ const AuthenticatedHome: React.FC = () => {
                     <span style={{
                       ...styles.statusBadge,
                       backgroundColor: order.status === "COMPLETED" ? "#d4edda" : "#fff3cd",
-                      color: order.status === "COMPLETED" ? "#155724" : "#856404",
-                    }}>{order.status}</span>
+                      color:           order.status === "COMPLETED" ? "#155724" : "#856404",
+                    }}>
+                      {order.status}
+                    </span>
                   </div>
                   <p style={styles.orderItems}>
                     {order.items.slice(0, 2).map((i) => `${i.quantity}× ${i.name}`).join(", ")}
@@ -138,28 +228,26 @@ const AuthenticatedHome: React.FC = () => {
   );
 };
 
+// ── Guest view ────────────────────────────────────────────────────────────────
+
 const GuestHome: React.FC = () => (
   <div style={styles.pageContainer}>
     <Navbar />
 
-    {/* Hero Section */}
     <section style={styles.hero}>
       <div style={styles.heroContent}>
         <h1 style={styles.heroTitle}>Fresh Organic Food Delivered to Your Door</h1>
-        <p style={styles.heroSubtitle}>
-          OFS brings you the finest selection of locally sourced, organic produce.
-        </p>
+        <p style={styles.heroSubtitle}>OFS brings you the finest selection of locally sourced, organic produce.</p>
         <p style={styles.heroLocation}>Located in Downtown San Jose</p>
         <Link to="/catalog" style={styles.ctaButton}>Shop Now</Link>
       </div>
     </section>
 
-    {/* How to Order Section */}
     <section style={styles.instructionsSection}>
       <div style={styles.sectionContainer}>
         <h2 style={styles.sectionTitle}>How to Order</h2>
         <div style={styles.stepsGrid}>
-          {orderSteps.map((item) => (
+          {ORDER_STEPS.map((item) => (
             <div key={item.step} style={styles.stepCard}>
               <div style={styles.stepNumber}>{item.step}</div>
               <h3 style={styles.stepTitle}>{item.title}</h3>
@@ -170,31 +258,51 @@ const GuestHome: React.FC = () => (
       </div>
     </section>
 
-    {/* Browse by Category */}
     <section style={styles.section}>
       <div style={styles.sectionContainer}>
         <h2 style={styles.sectionTitle}>Browse by Category</h2>
         <div style={styles.categoriesGrid}>
-          {categories.map((category) => (
-            <Link to="/catalog" key={category.name} style={styles.categoryCard}>
-              <h3 style={styles.categoryName}>{category.name}</h3>
-              <p style={styles.categoryDescription}>{category.description}</p>
+          {GUEST_CATEGORIES.map((cat) => (
+            <Link to="/catalog" key={cat.name} style={styles.categoryCard}>
+              <h3 style={styles.categoryName}>{cat.name}</h3>
+              <p style={styles.categoryDescription}>{cat.description}</p>
             </Link>
           ))}
         </div>
       </div>
     </section>
 
-    {/* Why Choose OFS */}
-    <section style={styles.infoBanner}>
+    <section style={{ ...styles.infoBanner, paddingBottom: "4rem" }}>
       <div style={styles.sectionContainer}>
         <h2 style={styles.bannerTitle}>Why Choose OFS?</h2>
         <div style={styles.benefitsGrid}>
-          {["100% Organic", "Local Farmers", "Eco-Friendly", "Free Delivery Under 20 lbs", "Real-Time Bot Tracking"].map((b) => (
-            <div key={b} style={styles.benefitItem}>
-              <span style={styles.benefitText}>{b}</span>
+          {BENEFITS.map((b) => (
+            <div key={b.label} style={styles.benefitCard}>
+              <p style={styles.benefitCardTitle}>{b.label}</p>
+              <p style={styles.benefitCardDesc}>{b.description}</p>
             </div>
           ))}
+        </div>
+      </div>
+    </section>
+
+    <section style={styles.coverageSection}>
+      <div style={styles.sectionContainer}>
+        <h2 style={styles.sectionTitle}>Delivery Coverage</h2>
+        <p style={styles.coverageSubtitle}>We currently deliver within 10 miles of Downtown San Jose</p>
+        <div style={styles.coverageCards}>
+          <div style={styles.coverageCard}>
+            <h3 style={styles.coverageCardTitle}>Coverage Area</h3>
+            <p style={styles.coverageCardText}>Within 10 miles of Downtown San Jose, CA</p>
+          </div>
+          <div style={styles.coverageCard}>
+            <h3 style={styles.coverageCardTitle}>Live Tracking</h3>
+            <p style={styles.coverageCardText}>Track your robot delivery in real time.</p>
+          </div>
+          <div style={styles.coverageCard}>
+            <h3 style={styles.coverageCardTitle}>Outside Our Zone?</h3>
+            <p style={styles.coverageCardText}>We're expanding soon.</p>
+          </div>
         </div>
       </div>
     </section>
@@ -202,6 +310,8 @@ const GuestHome: React.FC = () => (
     <Footer />
   </div>
 );
+
+// ── Root component ────────────────────────────────────────────────────────────
 
 const Home: React.FC = () => {
   const { user, loading } = useAuth();
@@ -217,6 +327,10 @@ const Home: React.FC = () => {
   return user ? <AuthenticatedHome /> : <GuestHome />;
 };
 
+export default Home;
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
 const styles: { [key: string]: React.CSSProperties } = {
   pageContainer: {
     minHeight: "100vh",
@@ -225,80 +339,12 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundColor: "#f8f9fa",
   },
 
-  // Guest styles
-  hero: {
-    background: "linear-gradient(135deg, #2d6a4f 0%, #40916c 100%)",
-    padding: "4rem 1rem",
-    textAlign: "center",
-  },
-  heroContent: { maxWidth: "800px", margin: "0 auto" },
-  heroTitle: { fontSize: "2.5rem", fontWeight: 700, color: "#ffffff", marginBottom: "1rem", lineHeight: 1.2 },
-  heroSubtitle: { fontSize: "1.15rem", color: "#d8f3dc", marginBottom: "1rem", lineHeight: 1.6 },
-  heroLocation: { fontSize: "0.95rem", color: "#95d5b2", marginBottom: "2rem", fontStyle: "italic" },
-  ctaButton: {
-    display: "inline-block",
-    backgroundColor: "#ffffff",
-    color: "#2d6a4f",
-    padding: "1rem 3rem",
-    borderRadius: "4px",
-    textDecoration: "none",
-    fontWeight: 700,
-    fontSize: "1.25rem",
-    boxShadow: "0 4px 15px rgba(0, 0, 0, 0.2)",
-  },
-  infoBanner: {
-    padding: "3rem 1rem 5rem",
-    backgroundColor: "#d8f3dc",
-  },
-  bannerTitle: {
-    fontSize: "2rem",
-    fontWeight: 700,
-    color: "#1b4332",
-    marginBottom: "2rem",
-    textAlign: "center",
-  },
-  benefitsGrid: {
-    display: "flex",
-    justifyContent: "center",
-    flexWrap: "wrap",
-    gap: "2rem",
-  },
-  benefitItem: {
-    display: "flex",
-    alignItems: "center",
-  },
-  benefitText: {
-    fontSize: "1.4rem",
-    fontWeight: 600,
-    color: "#2d6a4f",
-  },
-  heroBenefits: { display: "flex", flexWrap: "nowrap", justifyContent: "center", gap: "0.75rem", marginTop: "2rem" },
-  heroBenefit: {
-    backgroundColor: "#1b4332",
-    color: "#ffffff",
-    padding: "0.4rem 1rem",
-    borderRadius: "50px",
-    fontSize: "0.9rem",
-    fontWeight: 500,
-    whiteSpace: "nowrap",
-  },
-  instructionsSection: { padding: "2rem 1rem 4rem", backgroundColor: "#ffffff" },
-  stepsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "2rem" },
-  stepCard: { textAlign: "center", padding: "1.5rem" },
-  stepNumber: {
-    width: "60px", height: "60px", backgroundColor: "#2d6a4f", color: "#ffffff",
-    borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-    fontSize: "1.5rem", fontWeight: 700, margin: "0 auto 1rem",
-  },
-  stepTitle: { fontSize: "1.4rem", fontWeight: 600, color: "#1b4332", marginBottom: "0.75rem" },
-  stepDescription: { fontSize: "1.1rem", color: "#6c757d", lineHeight: 1.5 },
-
-  // Shared styles
-  section: { padding: "2rem 1rem 6rem" },
-  sectionContainer: { maxWidth: "1200px", margin: "0 auto" },
-  sectionTitle: { fontSize: "2rem", fontWeight: 700, color: "#1b4332", marginBottom: "1.5rem", textAlign: "center" },
-  sectionHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" },
-  seeAllLink: { color: "#2d6a4f", textDecoration: "none", fontWeight: 600, fontSize: "0.95rem" },
+  // Shared
+  sectionContainer:  { maxWidth: "1200px", margin: "0 auto" },
+  sectionTitle:      { fontSize: "2rem", fontWeight: 700, color: "#1b4332", marginBottom: "1.5rem", textAlign: "center" },
+  sectionHeader:     { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" },
+  seeAllLink:        { color: "#2d6a4f", textDecoration: "none", fontWeight: 600, fontSize: "0.95rem" },
+  section:           { padding: "1.5rem 1rem 3rem" },
   categoriesGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
@@ -306,45 +352,94 @@ const styles: { [key: string]: React.CSSProperties } = {
     justifyContent: "center",
   },
   categoryCard: {
-    backgroundColor: "#ffffff", borderRadius: "12px", padding: "1.5rem",
+    backgroundColor: "#f0faf4", borderRadius: "12px", padding: "1.5rem",
     textAlign: "center", textDecoration: "none",
     boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)", cursor: "pointer",
   },
-  categoryName: { fontSize: "1.25rem", fontWeight: 600, color: "#2d6a4f", marginBottom: "0.5rem" },
+  categoryName:        { fontSize: "1.25rem", fontWeight: 600, color: "#2d6a4f", marginBottom: "0.5rem" },
   categoryDescription: { fontSize: "1rem", color: "#6c757d", margin: 0 },
 
-  // Authenticated styles
-  welcomeBanner: {
-    background: "linear-gradient(135deg, #2d6a4f 0%, #40916c 100%)",
-    padding: "3rem 1rem",
+  // Nudge
+  nudgeSection: { backgroundColor: "#d8f3dc", padding: "1.5rem 1rem", textAlign: "center" },
+  nudgeText:    { fontSize: "1.05rem", color: "#1b4332", marginBottom: "1rem" },
+  nudgeActions: { display: "flex", justifyContent: "center", gap: "1rem", flexWrap: "wrap" as const },
+  nudgeSecondaryButton: {
+    display: "inline-block", backgroundColor: "transparent", color: "#2d6a4f",
+    padding: "0.75rem 2rem", borderRadius: "4px", textDecoration: "none",
+    fontWeight: 700, fontSize: "1rem", border: "2px solid #2d6a4f",
   },
-  welcomeTitle: { fontSize: "2rem", fontWeight: 700, color: "#ffffff", marginBottom: "0.5rem" },
+
+  // Authenticated
+  welcomeBanner:   { background: "linear-gradient(135deg, #2d6a4f 0%, #40916c 100%)", padding: "2rem 1rem" },
+  welcomeTitle:    { fontSize: "2rem", fontWeight: 700, color: "#ffffff", marginBottom: "0.5rem" },
   welcomeSubtitle: { fontSize: "1.05rem", color: "#d8f3dc", marginBottom: "1.5rem" },
   shopButton: {
-    display: "inline-block",
-    backgroundColor: "#ffffff",
-    color: "#2d6a4f",
-    padding: "0.75rem 2rem",
-    borderRadius: "4px",
-    textDecoration: "none",
-    fontWeight: 700,
-    fontSize: "1rem",
+    display: "inline-block", backgroundColor: "#ffffff", color: "#2d6a4f",
+    padding: "0.75rem 2rem", borderRadius: "4px", textDecoration: "none",
+    fontWeight: 700, fontSize: "1rem",
   },
-  ordersSection: { padding: "2rem 1rem 4rem", backgroundColor: "#ffffff" },
-  ordersGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" },
+  ordersSection:   { padding: "1.5rem 1rem 2.5rem", backgroundColor: "#ffffff" },
+  ordersGrid:      { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" },
   orderCard: {
     border: "1px solid #e9ecef", borderRadius: "12px",
     padding: "1.25rem", backgroundColor: "#f8f9fa",
   },
   orderCardHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" },
-  orderIdText: { fontWeight: 600, color: "#1b4332", fontSize: "0.95rem" },
-  statusBadge: { padding: "0.2rem 0.6rem", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 600 },
-  orderItems: { fontSize: "0.9rem", color: "#495057", marginBottom: "1rem", lineHeight: 1.4 },
+  orderIdText:     { fontWeight: 600, color: "#1b4332", fontSize: "0.95rem" },
+  statusBadge:     { padding: "0.2rem 0.6rem", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 600 },
+  orderItems:      { fontSize: "0.9rem", color: "#495057", marginBottom: "1rem", lineHeight: 1.4 },
   orderCardFooter: { display: "flex", justifyContent: "space-between", alignItems: "center" },
-  orderTotal: { fontSize: "1.1rem", fontWeight: 700, color: "#2d6a4f" },
-  orderDate: { fontSize: "0.8rem", color: "#6c757d" },
-  emptyOrders: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "1rem" },
-  mutedText: { color: "#6c757d", fontSize: "0.95rem" },
-};
+  orderTotal:      { fontSize: "1.1rem", fontWeight: 700, color: "#2d6a4f" },
+  orderDate:       { fontSize: "0.8rem", color: "#6c757d" },
+  emptyOrders:     { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "1rem" },
+  mutedText:       { color: "#6c757d", fontSize: "0.95rem" },
 
-export default Home;
+  // Guest
+  infoBanner:   { padding: "1.5rem 1rem 2.5rem", backgroundColor: "#ffffff" },
+  bannerTitle:  { fontSize: "2rem", fontWeight: 700, color: "#1b4332", marginBottom: "2rem", textAlign: "center" },
+  benefitsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    gap: "1.25rem",
+  },
+  benefitCard: {
+    backgroundColor: "#f0faf4", borderRadius: "12px", padding: "1.5rem",
+    boxShadow: "0 4px 16px rgba(0, 0, 0, 0.08)",
+    borderLeft: "4px solid #2d6a4f",
+  },
+  benefitCardTitle: { fontSize: "1.15rem", fontWeight: 700, color: "#1b4332", margin: "0 0 0.4rem 0" },
+  benefitCardDesc:  { fontSize: "0.9rem", color: "#6c757d", margin: 0 },
+  hero:           { background: "linear-gradient(135deg, #2d6a4f 0%, #40916c 100%)", padding: "2.5rem 1rem", textAlign: "center" },
+  heroContent:    { maxWidth: "800px", margin: "0 auto" },
+  heroTitle:      { fontSize: "2.5rem", fontWeight: 700, color: "#ffffff", marginBottom: "1rem", lineHeight: 1.2 },
+  heroSubtitle:   { fontSize: "1.15rem", color: "#d8f3dc", marginBottom: "1rem", lineHeight: 1.6 },
+  heroLocation:   { fontSize: "0.95rem", color: "#95d5b2", marginBottom: "2rem", fontStyle: "italic" },
+  ctaButton: {
+    display: "inline-block", backgroundColor: "#ffffff", color: "#2d6a4f",
+    padding: "1rem 3rem", borderRadius: "4px", textDecoration: "none",
+    fontWeight: 700, fontSize: "1.25rem", boxShadow: "0 4px 15px rgba(0, 0, 0, 0.2)",
+  },
+  instructionsSection: { padding: "1.5rem 1rem 2.5rem", backgroundColor: "#ffffff" },
+  coverageSection:     { padding: "1.5rem 1rem 4rem", backgroundColor: "#f8f9fa" },
+  coverageSubtitle:    { textAlign: "center", color: "#6c757d", fontSize: "1.05rem", marginBottom: "2rem" },
+  coverageCards: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: "1.5rem",
+  },
+  coverageCard: {
+    backgroundColor: "#ffffff", borderRadius: "12px", padding: "1.5rem",
+    textAlign: "center", boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)",
+  },
+  coverageCardTitle: { fontSize: "1.1rem", fontWeight: 700, color: "#1b4332", marginBottom: "0.5rem" },
+  coverageCardText:  { fontSize: "1rem", color: "#495057", lineHeight: 1.5, margin: 0 },
+  stepsGrid:      { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "2rem" },
+  stepCard:       { textAlign: "center", padding: "1.5rem" },
+  stepNumber: {
+    width: "60px", height: "60px", backgroundColor: "#2d6a4f", color: "#ffffff",
+    borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+    fontSize: "1.5rem", fontWeight: 700, margin: "0 auto 1rem",
+  },
+  stepTitle:       { fontSize: "1.4rem", fontWeight: 600, color: "#1b4332", marginBottom: "0.75rem" },
+  stepDescription: { fontSize: "1.1rem", color: "#6c757d", lineHeight: 1.5 },
+};

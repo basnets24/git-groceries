@@ -21,13 +21,17 @@ import AdminFleet from "./pages/AdminFleet";
 import AdminRevenue from "./pages/AdminRevenue";
 import CustomerProfile from "./pages/CustomerProfile";
 import { AuthProvider } from "./context/AuthContext";
+import { CartProvider } from "./context/CartContext";
+import CartWidget from "./components/CartWidget";
 
 
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
+      <CartProvider>
+        <BrowserRouter>
+          <CartWidget />
+          <Routes>
           {/* Public routes */}
           <Route path="/" element={<Home />} />
           <Route path="/catalog" element={<Catalog />} />
@@ -51,7 +55,8 @@ function App() {
           {/* Hidden employee routes - not linked in navbar */}
           <Route path="/employee/inventory" element={<Inventory />} />
         </Routes>
-      </BrowserRouter>
+        </BrowserRouter>
+      </CartProvider>
     </AuthProvider>
   );
 }
