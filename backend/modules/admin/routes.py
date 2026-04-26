@@ -53,7 +53,7 @@ def list_pending_dispatch():
 
 
 @admin_bp.route("/api/admin/dispatch/confirm", methods=["POST"])
-@roles_required(UserRole.MANAGER, UserRole.SUPERADMIN)
+@roles_required(UserRole.EMPLOYEE, UserRole.MANAGER, UserRole.SUPERADMIN)
 def confirm_dispatch():
     body = request.get_json(silent=True) or {}
     groups = body.get("groups")
@@ -62,6 +62,12 @@ def confirm_dispatch():
 
 
 @admin_bp.route("/api/admin/dispatch/auto", methods=["POST"])
-@roles_required(UserRole.MANAGER, UserRole.SUPERADMIN)
+@roles_required(UserRole.EMPLOYEE, UserRole.MANAGER, UserRole.SUPERADMIN)
 def auto_dispatch():
     return jsonify(fleet.auto_dispatch_expired()), 201
+
+
+@admin_bp.route("/api/admin/revenue", methods=["GET"])
+@roles_required(UserRole.EMPLOYEE, UserRole.MANAGER, UserRole.SUPERADMIN)
+def get_revenue():
+    return jsonify(repository.fetch_revenue_detail()), 200
