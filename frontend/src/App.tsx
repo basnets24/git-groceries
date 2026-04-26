@@ -8,7 +8,6 @@ import Catalog from "./pages/Catalog";
 import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
 import Orders from "./pages/Orders";
-import About from "./pages/About";
 import Register from "./pages/Register";
 import Delivery from "./pages/Delivery";
 import Inventory from "./pages/Inventory";
@@ -38,7 +37,6 @@ function App() {
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/orders" element={<Orders />} />
-          <Route path="/about" element={<About />} />
           <Route path="/delivery" element={<Delivery />} />
           <Route path="/login" element={<Login />} />
           <Route path="/logout" element={<Logout />} />
