@@ -243,17 +243,30 @@ def complete_trip(trip_id: int, order_id: int, customer_id: int) -> None:
         conn.close()
 
 
-def get_trip_status(trip_id: int) -> Optional[Dict]:
+def get_trip_status(trip_id: int, customer_id: Optional[int]) -> Optional[Dict]:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute(
-        """
-        SELECT Status, DurationSec, StartedAt
-        FROM DeliveryTrip
-        WHERE DeliveryTripID = %s
-        """,
-        (trip_id,),
-    )
+    if customer_id is None:
+        cursor.execute(
+            """
+            SELECT Status, DurationSec, StartedAt
+            FROM DeliveryTrip
+            WHERE DeliveryTripID = %s
+            """,
+            (trip_id,),
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT dt.Status, dt.DurationSec, dt.StartedAt
+            FROM DeliveryTrip dt
+            JOIN TripStop ts ON ts.DeliveryTripID = dt.DeliveryTripID
+            JOIN ShoppingOrder so ON so.ShoppingOrderID = ts.ShoppingOrderID
+            WHERE dt.DeliveryTripID = %s AND so.UserID = %s
+            LIMIT 1
+            """,
+            (trip_id, customer_id),
+        )
     row = cursor.fetchone()
     cursor.close()
     conn.close()

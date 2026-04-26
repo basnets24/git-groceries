@@ -1,6 +1,7 @@
 from flask import g, jsonify, request
 
 from exceptions import AuthError
+from models.user import UserRole
 from modules.auth.decorators import auth_required
 
 from . import delivery_bp, services
@@ -50,7 +51,20 @@ def complete_delivery(trip_id: int):
 @delivery_bp.route("/api/delivery/<int:trip_id>/status", methods=["GET"])
 @auth_required
 def delivery_status(trip_id: int):
-    result = services.get_trip_status(trip_id)
+    auth_payload = getattr(g, "auth_payload", None) or {}
+    customer_id = auth_payload.get("customerID")
+    role = auth_payload.get("role")
+    if customer_id is None:
+        raise AuthError("Missing customer identity in token", 401)
+
+    staff_roles = {
+        UserRole.EMPLOYEE.value,
+        UserRole.MANAGER.value,
+        UserRole.SUPERADMIN.value,
+    }
+    scoped_customer_id = None if role in staff_roles else customer_id
+
+    result = services.get_trip_status(trip_id, scoped_customer_id)
     if result is None:
         return jsonify({"error": "Trip not found"}), 404
     return jsonify(result), 200
