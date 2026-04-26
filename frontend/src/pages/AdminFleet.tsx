@@ -105,7 +105,7 @@ const fmtDuration = (sec: number): string =>
   sec < 60 ? `${sec}s` : `${Math.floor(sec / 60)} min`;
 
 const fmtDistance = (m: number): string =>
-  m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`;
+  `${(m / 1609.344).toFixed(1)} mi`;
 
 const interpolateAlongPath = (
   path: any[],
@@ -168,6 +168,21 @@ const AdminFleet: React.FC = () => {
     return headers;
   }, [token]);
 
+  const loadedTripIdsRef = useRef<Set<number>>(new Set());
+
+  const loadTrip = useCallback(async (tripId: number) => {
+    if (loadedTripIdsRef.current.has(tripId)) return;
+    loadedTripIdsRef.current.add(tripId);
+    try {
+      const res = await fetch(`/api/admin/trips/${tripId}`, { headers: authHeaders });
+      if (!res.ok) return;
+      const trip: TripResult = await res.json();
+      setSessionTrips((prev) =>
+        prev.some((t) => t.trip_id === tripId) ? prev : [...prev, trip]
+      );
+    } catch {}
+  }, [authHeaders]);
+
   const fetchData = useCallback(async () => {
     if (!token) {
       setError("Not authenticated");
@@ -188,17 +203,24 @@ const AdminFleet: React.FC = () => {
       }
       const robotsData = await robotsRes.json();
       const pendingData = await pendingRes.json();
-      setRobots(robotsData.robots || []);
+      const fetchedRobots: Robot[] = robotsData.robots || [];
+      setRobots(fetchedRobots);
       setOrders(pendingData.orders || []);
       setAutoDispatchAfterSec(pendingData.auto_dispatch_after_sec ?? 300);
       fetchTimestampRef.current = Date.now();
       setError(null);
+      // Auto-restore active trips for robots that are still mid-delivery.
+      for (const r of fetchedRobots) {
+        if ((r.status === "DISPATCHED" || r.status === "RETURNING") && r.trip_id) {
+          loadTrip(r.trip_id);
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load fleet data");
     } finally {
       setLoading(false);
     }
-  }, [authHeaders, token]);
+  }, [authHeaders, token, loadTrip]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -857,6 +879,7 @@ const AdminFleet: React.FC = () => {
               <h3 style={styles.sectionTitle}>Fleet</h3>
               {robots.map((r) => {
                 const color = ROBOT_COLORS[(r.robot_id - 1) % ROBOT_COLORS.length];
+                const isActive = r.status === "DISPATCHED" || r.status === "RETURNING";
                 return (
                   <div key={r.robot_id} style={styles.fleetRow}>
                     <span style={{ ...styles.robotDot, backgroundColor: color }}>
@@ -869,6 +892,15 @@ const AdminFleet: React.FC = () => {
                         {r.trip_id ? ` · trip #${r.trip_id}` : ""}
                       </p>
                     </div>
+                    {isActive && r.trip_id && (
+                      <button
+                        type="button"
+                        style={styles.viewTripButton}
+                        onClick={() => loadTrip(r.trip_id!)}
+                      >
+                        View Trip
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -1101,6 +1133,17 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderTop: "1px dashed #dee2e6",
   },
   muted: { color: "#6c757d", margin: 0 },
+  viewTripButton: {
+    border: "1px solid #1b4332",
+    background: "none",
+    color: "#1b4332",
+    padding: "0.25rem 0.6rem",
+    borderRadius: 6,
+    cursor: "pointer",
+    fontSize: "0.78rem",
+    fontWeight: 600,
+    whiteSpace: "nowrap" as const,
+  },
   clearDoneButton: {
     background: "none",
     border: "none",

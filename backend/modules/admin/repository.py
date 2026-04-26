@@ -80,7 +80,7 @@ def fetch_revenue_detail() -> Dict:
             {
                 "payment_id": r["payment_id"],
                 "amount": float(r["amount"]),
-                "occurred_at": r["occurred_at"].isoformat() if r["occurred_at"] else None,
+                "occurred_at": r["occurred_at"].isoformat() + "Z" if r["occurred_at"] else None,
                 "order_id": r["order_id"],
                 "customer": r["customer"],
             }
@@ -147,7 +147,7 @@ def fetch_all_orders() -> List[Dict]:
             },
             "subtotal": float(row["subtotal"]) if row["subtotal"] is not None else 0.0,
             "total_weight": float(row["total_weight"]) if row["total_weight"] is not None else 0.0,
-            "order_date": row["order_date"].isoformat() if row["order_date"] else None,
+            "order_date": row["order_date"].isoformat() + "Z" if row["order_date"] else None,
             "payment_status": row["payment_status"],
             "trip_id": row["trip_id"],
         })
@@ -260,9 +260,9 @@ def fetch_order_detail(order_id: int) -> Optional[Dict]:
             },
             "distance_m": trip_row["distance_m"],
             "duration_sec": trip_row["duration_sec"],
-            "started_at": trip_row["started_at"].isoformat() if trip_row["started_at"] else None,
+            "started_at": trip_row["started_at"].isoformat() + "Z" if trip_row["started_at"] else None,
             "stop_index": trip_row["stop_index"],
-            "eta": trip_row["eta"].isoformat() if trip_row["eta"] else None,
+            "eta": trip_row["eta"].isoformat() + "Z" if trip_row["eta"] else None,
         }
 
     return {

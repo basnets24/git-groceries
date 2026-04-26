@@ -14,8 +14,8 @@ def _serialize_profile(profile: CustomerProfile) -> Dict:
         "defaultAddressId": profile.default_address_id,
         "substitutionPreference": profile.substitution_preference,
         "notes": profile.notes,
-        "createdAt": profile.created_at.isoformat(),
-        "updatedAt": profile.updated_at.isoformat(),
+        "createdAt": profile.created_at.isoformat() + "Z",
+        "updatedAt": profile.updated_at.isoformat() + "Z",
     }
 
 
@@ -31,8 +31,8 @@ def _serialize_address(address: CustomerAddress) -> Dict:
         "postalCode": address.postal_code,
         "deliveryInstructions": address.delivery_instructions,
         "isDefault": address.is_default,
-        "createdAt": address.created_at.isoformat(),
-        "updatedAt": address.updated_at.isoformat(),
+        "createdAt": address.created_at.isoformat() + "Z",
+        "updatedAt": address.updated_at.isoformat() + "Z",
     }
 
 
@@ -43,8 +43,8 @@ def _serialize_preference(pref: CustomerPreference) -> Dict:
         "type": pref.preference_type,
         "value": pref.preference_value,
         "source": pref.source,
-        "createdAt": pref.created_at.isoformat(),
-        "updatedAt": pref.updated_at.isoformat(),
+        "createdAt": pref.created_at.isoformat() + "Z",
+        "updatedAt": pref.updated_at.isoformat() + "Z",
     }
 
 
