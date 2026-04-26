@@ -34,22 +34,17 @@ const tiles: AdminTile[] = [
         status: "Live",
     },
     {
-        title: "Payment Center",
-        description: "Hook up Stripe payouts, reconcile payment intents, and investigate failures.",
-        cta: "Stripe Console",
-        status: "Integration pending",
-    },
-    {
-        title: "Delivery Routing",
-        description: "Plan delivery slots, dispatch drivers/bots, and check ETAs via Google Maps.",
-        cta: "Schedule Deliveries",
-        status: "Integration pending",
-    },
-    {
         title: "Delivery Fleet",
         description: "Live map of the 10-robot fleet, pending-order queue, and manual dispatch with shortest-route planning.",
         to: "/admin/fleet",
         cta: "Open Dispatch Console",
+        status: "Live",
+    },
+    {
+        title: "Revenue",
+        description: "Track completed-payment earnings across daily, weekly, and all-time windows.",
+        to: "/admin/revenue",
+        cta: "View earnings",
         status: "Live",
     },
 ];
@@ -86,6 +81,7 @@ const AdminDashboard: React.FC = () => {
       setSelectedRole(assignableRoles[0]);
     }
   }, [assignableRoles, selectedRole]);
+
 
   const canAssignRoles = assignableRoles.length > 0;
   const isValidTarget = /^\d+$/.test(targetUserId.trim());
@@ -355,6 +351,7 @@ const AdminDashboard: React.FC = () => {
               )}
             </article>
           ))}
+
         </section>
       </main>
     </div>
@@ -601,6 +598,48 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: "0.65rem 1.25rem",
     borderRadius: "8px",
     fontWeight: 600,
+    border: "none",
+    cursor: "pointer",
+    display: "inline-block",
+  },
+  cardBackButton: {
+    marginTop: "1rem",
+    alignSelf: "flex-start",
+    background: "none",
+    border: "none",
+    color: "#40916c",
+    fontWeight: 600,
+    cursor: "pointer",
+    padding: 0,
+    fontSize: "0.9rem",
+  },
+  revenueTabs: {
+    display: "flex",
+    gap: "0.4rem",
+    flexWrap: "wrap" as const,
+    marginTop: "0.75rem",
+  },
+  revenueTab: {
+    padding: "0.35rem 0.8rem",
+    borderRadius: "999px",
+    border: "1px solid #ced4da",
+    backgroundColor: "#f8f9fa",
+    color: "#495057",
+    fontWeight: 500,
+    cursor: "pointer",
+    fontSize: "0.8rem",
+  },
+  revenueTabActive: {
+    backgroundColor: "#1b4332",
+    color: "#ffffff",
+    border: "1px solid #1b4332",
+  },
+  revenueAmount: {
+    margin: "1rem 0 0",
+    fontSize: "2rem",
+    fontWeight: 700,
+    color: "#1b4332",
+    letterSpacing: "-0.02em",
   },
   cardButton: {
     marginTop: "1rem",

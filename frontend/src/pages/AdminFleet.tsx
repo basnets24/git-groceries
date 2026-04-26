@@ -58,6 +58,12 @@ interface TripResult {
 
 const REFRESH_INTERVAL_MS = 10000;
 const COUNTDOWN_INTERVAL_MS = 1000;
+const MAX_ORDERS_PER_TRIP = 10;
+const MAX_WEIGHT_LBS = 200.0;
+// one Map instance and one container div that survive
+// Re-creating google.maps.Map on the same page breaks to fix reload bug
+let _mapDiv: HTMLDivElement | null = null;
+let _mapInstance: any = null;
 
 const loadGoogleMaps = (apiKey: string): Promise<void> => {
   return new Promise((resolve, reject) => {
@@ -95,6 +101,40 @@ const formatCountdown = (secs: number | null): string => {
   return `${m}:${s.toString().padStart(2, "0")}`;
 };
 
+const fmtDuration = (sec: number): string =>
+  sec < 60 ? `${sec}s` : `${Math.floor(sec / 60)} min`;
+
+const fmtDistance = (m: number): string =>
+  m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`;
+
+const interpolateAlongPath = (
+  path: any[],
+  progress: number,
+): { lat: number; lng: number } | null => {
+  if (!path || !path.length) return null;
+  if (progress <= 0) return { lat: path[0].lat(), lng: path[0].lng() };
+  if (progress >= 1) return { lat: path[path.length - 1].lat(), lng: path[path.length - 1].lng() };
+
+  let totalLen = 0;
+  const segs: number[] = [];
+  for (let i = 0; i < path.length - 1; i++) {
+    const d = window.google.maps.geometry.spherical.computeDistanceBetween(path[i], path[i + 1]);
+    segs.push(d);
+    totalLen += d;
+  }
+  const target = totalLen * progress;
+  let acc = 0;
+  for (let i = 0; i < segs.length; i++) {
+    if (acc + segs[i] >= target) {
+      const t = segs[i] > 0 ? (target - acc) / segs[i] : 0;
+      const pt = window.google.maps.geometry.spherical.interpolate(path[i], path[i + 1], t);
+      return { lat: pt.lat(), lng: pt.lng() };
+    }
+    acc += segs[i];
+  }
+  return { lat: path[path.length - 1].lat(), lng: path[path.length - 1].lng() };
+};
+
 const AdminFleet: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
 
@@ -102,6 +142,9 @@ const AdminFleet: React.FC = () => {
   const [orders, setOrders] = useState<PendingOrder[]>([]);
   const [autoDispatchAfterSec, setAutoDispatchAfterSec] = useState(300);
   const [assignments, setAssignments] = useState<Record<number, number | null>>({});
+  const [sessionTrips, setSessionTrips] = useState<TripResult[]>([]);
+  const [tripProgress, setTripProgress] = useState<Record<number, number>>({});
+  const [mapLoaded, setMapLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -112,6 +155,8 @@ const AdminFleet: React.FC = () => {
   const mapInstanceRef = useRef<any>(null);
   const robotMarkersRef = useRef<Record<number, any>>({});
   const orderMarkersRef = useRef<Record<number, any>>({});
+  const polylineLayers = useRef<Record<number, any>>({});
+  const decodedPaths = useRef<Record<number, any[]>>({});
   const autoDispatchRequestedRef = useRef<number | null>(null);
 
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -176,7 +221,7 @@ const AdminFleet: React.FC = () => {
     });
   }, [orders]);
 
-  // Map bootstrap.
+  // Map bootstrap — re-attaches the persistent singleton div/Map on each mount.
   useEffect(() => {
     const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
     if (!apiKey) {
@@ -186,15 +231,33 @@ const AdminFleet: React.FC = () => {
     let cancelled = false;
     loadGoogleMaps(apiKey)
       .then(() => {
-        if (cancelled || !mapRef.current || mapInstanceRef.current) return;
-        mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-          center: { lat: 37.3352, lng: -121.8811 },
-          zoom: 13,
-        });
+        if (cancelled || !mapRef.current) return;
+        if (!_mapDiv || !_mapInstance) {
+          _mapDiv = document.createElement("div");
+          _mapDiv.style.width = "100%";
+          _mapDiv.style.height = "100%";
+          _mapInstance = new window.google.maps.Map(_mapDiv, {
+            center: { lat: 37.3352, lng: -121.8811 },
+            zoom: 13,
+          });
+        }
+        mapRef.current.appendChild(_mapDiv);
+        mapInstanceRef.current = _mapInstance;
+        window.google.maps.event.trigger(_mapInstance, "resize");
+        setMapLoaded(true);
       })
       .catch((e) => setError(e.message || "Map failed to load"));
     return () => {
       cancelled = true;
+      Object.values(robotMarkersRef.current).forEach((m) => m.setMap(null));
+      Object.values(orderMarkersRef.current).forEach((m) => m.setMap(null));
+      Object.values(polylineLayers.current).forEach((p) => p.setMap(null));
+      if (_mapDiv?.parentNode) _mapDiv.parentNode.removeChild(_mapDiv);
+      mapInstanceRef.current = null;
+      robotMarkersRef.current = {};
+      orderMarkersRef.current = {};
+      polylineLayers.current = {};
+      decodedPaths.current = {};
     };
   }, []);
 
@@ -209,7 +272,26 @@ const AdminFleet: React.FC = () => {
     robots.forEach((r) => {
       seen.add(r.robot_id);
       const color = ROBOT_COLORS[(r.robot_id - 1) % ROBOT_COLORS.length];
-      const position = { lat: r.lat, lng: r.lng };
+
+      let position = { lat: r.lat, lng: r.lng };
+      const activeTrip = sessionTrips.find(
+        (t) => t.robot_id === r.robot_id && t.polyline && (tripProgress[t.trip_id] ?? 0) < 1.0,
+      );
+      if (activeTrip && window.google.maps.geometry) {
+        const progress = tripProgress[activeTrip.trip_id] ?? 0;
+        if (progress > 0) {
+          if (!decodedPaths.current[activeTrip.trip_id]) {
+            decodedPaths.current[activeTrip.trip_id] =
+              window.google.maps.geometry.encoding.decodePath(activeTrip.polyline!);
+          }
+          const interpolated = interpolateAlongPath(
+            decodedPaths.current[activeTrip.trip_id],
+            progress,
+          );
+          if (interpolated) position = interpolated;
+        }
+      }
+
       if (existing[r.robot_id]) {
         existing[r.robot_id].setPosition(position);
         existing[r.robot_id].setTitle(`${r.label} (${r.status})`);
@@ -239,7 +321,7 @@ const AdminFleet: React.FC = () => {
         delete existing[id];
       }
     }
-  }, [robots]);
+  }, [robots, sessionTrips, tripProgress, mapLoaded]);
 
   // Render pending-order markers.
   useEffect(() => {
@@ -298,7 +380,78 @@ const AdminFleet: React.FC = () => {
         delete existing[id];
       }
     }
-  }, [orders, assignments]);
+  }, [orders, assignments, mapLoaded]);
+
+  // Draw route polylines for session-dispatched trips.
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !window.google?.maps) return;
+    const layers = polylineLayers.current;
+    const seen = new Set<number>();
+
+    sessionTrips.forEach((trip) => {
+      if (!trip.polyline) return;
+      seen.add(trip.trip_id);
+      if (!layers[trip.trip_id]) {
+        const color = ROBOT_COLORS[(trip.robot_id - 1) % ROBOT_COLORS.length];
+        if (!decodedPaths.current[trip.trip_id]) {
+          decodedPaths.current[trip.trip_id] =
+            window.google.maps.geometry.encoding.decodePath(trip.polyline);
+        }
+        layers[trip.trip_id] = new window.google.maps.Polyline({
+          path: decodedPaths.current[trip.trip_id],
+          strokeColor: color,
+          strokeOpacity: 0.8,
+          strokeWeight: 4,
+          map,
+          zIndex: 100,
+        });
+      }
+    });
+
+    for (const key of Object.keys(layers)) {
+      const id = Number(key);
+      if (!seen.has(id)) {
+        layers[id].setMap(null);
+        delete layers[id];
+      }
+    }
+  }, [sessionTrips, mapLoaded]);
+
+  // Poll trip status every 2s and animate robots along their routes.
+  // tripProgress is intentionally excluded from deps — we don't want to
+  // recreate the interval on every progress tick.
+  useEffect(() => {
+    const activeTrips = sessionTrips.filter(
+      (t) => (tripProgress[t.trip_id] ?? 0) < 1.0 && t.polyline,
+    );
+    if (!activeTrips.length) return;
+
+    const poll = async () => {
+      const updates: Record<number, number> = {};
+      await Promise.all(
+        activeTrips.map(async (trip) => {
+          try {
+            const res = await fetch(`/api/delivery/${trip.trip_id}/status`, {
+              headers: authHeaders,
+            });
+            if (res.ok) {
+              const data = await res.json();
+              updates[trip.trip_id] = data.finished ? 1.0 : (data.progress ?? 0);
+            }
+          } catch {}
+        }),
+      );
+      if (Object.keys(updates).length) {
+        setTripProgress((prev) => ({ ...prev, ...updates }));
+        if (Object.values(updates).some((p) => p >= 1.0)) fetchData();
+      }
+    };
+
+    poll();
+    const id = setInterval(poll, 2000);
+    return () => clearInterval(id);
+  }, [sessionTrips, authHeaders, fetchData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const orderWeights = useMemo(() => {
     const m: Record<number, number> = {};
@@ -359,6 +512,7 @@ const AdminFleet: React.FC = () => {
         throw new Error(data?.error || `Dispatch failed: ${res.status}`);
       }
       const trips: TripResult[] = data.trips || [];
+      setSessionTrips((prev) => [...prev, ...trips]);
       setStatus({
         type: "success",
         message: `Dispatched ${trips.length} trip(s) covering ${trips.reduce(
@@ -390,6 +544,7 @@ const AdminFleet: React.FC = () => {
       }
       const trips: TripResult[] = data.trips || [];
       if (trips.length) {
+        setSessionTrips((prev) => [...prev, ...trips]);
         setStatus({
           type: "success",
           message: `Auto-dispatched ${trips.length} trip(s) past the 5-minute window.`,
@@ -455,9 +610,7 @@ const AdminFleet: React.FC = () => {
         {error && <div style={styles.errorBox}>{error}</div>}
         {status && (
           <div
-            style={
-              status.type === "success" ? styles.successBox : styles.errorBox
-            }
+            style={status.type === "success" ? styles.successBox : styles.errorBox}
             role="status"
           >
             {status.message}
@@ -534,20 +687,47 @@ const AdminFleet: React.FC = () => {
                   const robotId = Number(rid);
                   const robot = robots.find((r) => r.robot_id === robotId);
                   const color = ROBOT_COLORS[(robotId - 1) % ROBOT_COLORS.length];
+                  const weight = groupWeight(robotId);
+                  const weightPct = Math.min(100, (weight / MAX_WEIGHT_LBS) * 100);
+                  const orderPct = Math.min(100, (oids.length / MAX_ORDERS_PER_TRIP) * 100);
+                  const overWeight = weight > MAX_WEIGHT_LBS;
+                  const overOrders = oids.length > MAX_ORDERS_PER_TRIP;
                   return (
                     <div key={rid} style={styles.tripBlock}>
                       <div style={styles.tripHeader}>
-                        <span
-                          style={{
-                            ...styles.robotBadge,
-                            backgroundColor: color,
-                          }}
-                        >
+                        <span style={{ ...styles.robotBadge, backgroundColor: color }}>
                           {robot?.label || `Robot #${rid}`}
                         </span>
-                        <span style={styles.tripWeight}>
-                          {groupWeight(robotId).toFixed(1)} lbs · {oids.length} stop(s)
+                        <span style={{
+                          ...styles.tripWeight,
+                          color: overWeight || overOrders ? "#a4161a" : "#6c757d",
+                        }}>
+                          {weight.toFixed(1)} lbs · {oids.length} stop{oids.length !== 1 ? "s" : ""}
                         </span>
+                      </div>
+                      <div style={styles.capBars}>
+                        <div style={styles.capRow}>
+                          <span style={styles.capLabel}>Weight</span>
+                          <div style={styles.capTrack}>
+                            <div style={{
+                              ...styles.capFill,
+                              width: `${weightPct}%`,
+                              backgroundColor: overWeight ? "#a4161a" : color,
+                            }} />
+                          </div>
+                          <span style={styles.capNum}>{weight.toFixed(0)}/{MAX_WEIGHT_LBS}</span>
+                        </div>
+                        <div style={styles.capRow}>
+                          <span style={styles.capLabel}>Orders</span>
+                          <div style={styles.capTrack}>
+                            <div style={{
+                              ...styles.capFill,
+                              width: `${orderPct}%`,
+                              backgroundColor: overOrders ? "#a4161a" : color,
+                            }} />
+                          </div>
+                          <span style={styles.capNum}>{oids.length}/{MAX_ORDERS_PER_TRIP}</span>
+                        </div>
                       </div>
                       {oids.map((oid) => {
                         const order = orders.find((o) => o.order_id === oid);
@@ -591,6 +771,65 @@ const AdminFleet: React.FC = () => {
                     {submitting ? "Dispatching…" : "Confirm & dispatch"}
                   </button>
                 </div>
+              </div>
+            )}
+
+            {sessionTrips.length > 0 && (
+              <div style={styles.section}>
+                <h3 style={styles.sectionTitle}>Active Trips ({sessionTrips.length})</h3>
+                {sessionTrips.map((trip) => {
+                  const color = ROBOT_COLORS[(trip.robot_id - 1) % ROBOT_COLORS.length];
+                  const robot = robots.find((r) => r.robot_id === trip.robot_id);
+                  const progress = tripProgress[trip.trip_id] ?? 0;
+                  const pct = Math.round(progress * 100);
+                  const done = progress >= 1.0;
+                  return (
+                    <div key={trip.trip_id} style={{
+                      ...styles.tripBlock,
+                      borderColor: done ? "#40916c" : "#dee2e6",
+                      backgroundColor: done ? "#f0fdf4" : "#ffffff",
+                    }}>
+                      <div style={styles.tripHeader}>
+                        <span style={{ ...styles.robotBadge, backgroundColor: color }}>
+                          {robot?.label || `Robot #${trip.robot_id}`}
+                        </span>
+                        <span style={styles.tripWeight}>
+                          {fmtDistance(trip.distance_m)} · {fmtDuration(trip.duration_sec)}
+                        </span>
+                      </div>
+                      <div style={styles.capRow}>
+                        <div style={styles.capTrack}>
+                          <div style={{
+                            ...styles.capFill,
+                            width: `${pct}%`,
+                            backgroundColor: done ? "#40916c" : color,
+                            transition: "width 0.5s ease",
+                          }} />
+                        </div>
+                        <span style={{ ...styles.capNum, color: done ? "#40916c" : "#6c757d" }}>
+                          {done ? "Done ✓" : `${pct}%`}
+                        </span>
+                      </div>
+                      {trip.stops.map((stop) => (
+                        <div key={stop.order_id} style={styles.tripStop}>
+                          <div>
+                            <p style={styles.orderTitle}>
+                              #{stop.order_id} · stop {stop.stop_index + 1}
+                            </p>
+                            <p style={styles.orderMeta}>{stop.address}</p>
+                            <p style={styles.orderMeta}>
+                              ETA{" "}
+                              {new Date(stop.eta).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -678,10 +917,11 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   map: {
     width: "100%",
-    minHeight: 640,
+    height: 640,
     borderRadius: 12,
     overflow: "hidden",
     boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+    position: "relative",
   },
   sidebar: {
     backgroundColor: "#ffffff",
@@ -744,6 +984,18 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "0.85rem",
   },
   tripWeight: { fontSize: "0.8rem", color: "#6c757d" },
+  capBars: { display: "flex", flexDirection: "column", gap: "0.25rem" },
+  capRow: { display: "flex", alignItems: "center", gap: "0.4rem" },
+  capLabel: { fontSize: "0.7rem", color: "#6c757d", width: 44, flexShrink: 0 },
+  capTrack: {
+    flex: 1,
+    height: 6,
+    backgroundColor: "#e9ecef",
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  capFill: { height: "100%", borderRadius: 999 },
+  capNum: { fontSize: "0.7rem", color: "#6c757d", width: 52, textAlign: "right", flexShrink: 0 },
   tripStop: {
     display: "flex",
     justifyContent: "space-between",

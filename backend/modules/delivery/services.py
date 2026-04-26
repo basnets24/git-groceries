@@ -286,16 +286,20 @@ def list_customer_deliveries(customer_id: int) -> List[Dict]:
             dt.OriginAddress      AS origin_address,
             dt.OriginLat          AS origin_lat,
             dt.OriginLng          AS origin_lng,
-            dt.DestinationAddress AS dest_address,
-            dt.DestLat            AS dest_lat,
-            dt.DestLng            AS dest_lng,
             dt.DistanceM          AS distance_m,
             dt.DurationSec        AS duration_sec,
             dt.StartedAt          AS started_at,
-            ts.ShoppingOrderID    AS order_id
+            ts.ShoppingOrderID    AS order_id,
+            ts.ETA                AS stop_eta,
+            COALESCE(NULLIF(so.Street, ''), ca.StreetLine1, '') AS stop_street,
+            COALESCE(NULLIF(so.City,   ''), ca.City,        '') AS stop_city,
+            COALESCE(NULLIF(so.State,  ''), ca.State,       '') AS stop_state,
+            COALESCE(NULLIF(so.Zip,    ''), ca.PostalCode,  '') AS stop_zip
         FROM DeliveryTrip dt
-        JOIN TripStop ts  ON dt.DeliveryTripID  = ts.DeliveryTripID
+        JOIN TripStop ts ON dt.DeliveryTripID = ts.DeliveryTripID
         JOIN ShoppingOrder so ON ts.ShoppingOrderID = so.ShoppingOrderID
+        LEFT JOIN CustomerProfile cp ON cp.UserID = so.UserID
+        LEFT JOIN CustomerAddress ca ON ca.CustomerAddressID = cp.DefaultAddressID
         WHERE so.UserID = %s
         ORDER BY dt.DeliveryTripID DESC
         """,
@@ -312,33 +316,69 @@ def list_customer_deliveries(customer_id: int) -> List[Dict]:
             continue
         seen.add(row["trip_id"])
 
-        finished = row["trip_status"] == "COMPLETED"
-        duration_sec = row["duration_sec"] or 0
-        progress, eta_sec = _calc_progress(row["started_at"], duration_sec, finished)
+        stop_address = ", ".join(
+            p for p in [
+                row.get("stop_street"), row.get("stop_city"),
+                row.get("stop_state"), row.get("stop_zip"),
+            ] if p
+        )
+
+        dest_lat: float = 0.0
+        dest_lng: float = 0.0
+        # Fall back to full-trip values if per-stop directions fail.
+        trip_polyline = row["polyline"] or ""
+        trip_duration_sec = row["duration_sec"] or 0
+        trip_distance_m = row["distance_m"] or 0
+
+        if stop_address:
+            geo = client.geocode(stop_address)
+            if geo.get("status") == "OK":
+                dest_lat = float(geo.get("lat", 0.0))
+                dest_lng = float(geo.get("lng", 0.0))
+
+            # direct route from origin to this customer's stop 
+            stop_dirs = client.get_directions(ROBOT_ORIGIN_ADDRESS, stop_address.strip())
+            if stop_dirs.get("status") == "OK":
+                trip_polyline = stop_dirs.get("encoded_polyline", trip_polyline)
+                trip_duration_sec = stop_dirs.get("duration_sec", trip_duration_sec)
+                trip_distance_m = stop_dirs.get("distance_m", trip_distance_m)
+
+        # robot ETA is based on specific stop, not the whole trip
+        stop_eta = row.get("stop_eta")
+        started_at = row["started_at"]
+        if stop_eta and started_at:
+            stop_duration_sec = max(1, int((stop_eta - started_at).total_seconds()))
+        else:
+            stop_duration_sec = trip_duration_sec
+
+        finished = (row["trip_status"] == "COMPLETED") or (
+            stop_eta is not None and datetime.now() >= stop_eta
+        )
+        progress, eta_sec = _calc_progress(started_at, stop_duration_sec, finished)
         if progress >= 1.0:
             finished = True
 
         trips.append({
             "trip_id": row["trip_id"],
             "order_id": row["order_id"],
-            "polyline": row["polyline"] or "",
+            "polyline": trip_polyline,
             "origin": {
                 "lat": float(row["origin_lat"]) if row["origin_lat"] else 0,
                 "lng": float(row["origin_lng"]) if row["origin_lng"] else 0,
                 "address": row["origin_address"] or "",
             },
             "destination": {
-                "lat": float(row["dest_lat"]) if row["dest_lat"] else 0,
-                "lng": float(row["dest_lng"]) if row["dest_lng"] else 0,
-                "address": row["dest_address"] or "",
+                "lat": dest_lat,
+                "lng": dest_lng,
+                "address": stop_address,
             },
-            "total_duration_sec": duration_sec,
-            "real_duration_sec": duration_sec,
-            "distance_m": row["distance_m"] or 0,
+            "total_duration_sec": stop_duration_sec,
+            "real_duration_sec": trip_duration_sec,
+            "distance_m": trip_distance_m,
             "progress": progress,
             "eta_sec": eta_sec,
             "finished": finished,
-            "started_at": row["started_at"].timestamp() if row["started_at"] else 0,
+            "started_at": started_at.timestamp() if started_at else 0,
         })
     return trips
 

@@ -18,6 +18,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminOrders from "./pages/AdminOrders";
 import AdminOrderDetail from "./pages/AdminOrderDetail";
 import AdminFleet from "./pages/AdminFleet";
+import AdminRevenue from "./pages/AdminRevenue";
 import CustomerProfile from "./pages/CustomerProfile";
 import { AuthProvider } from "./context/AuthContext";
 
@@ -45,6 +46,7 @@ function App() {
           <Route path="/admin/orders" element={<AdminOrders />} />
           <Route path="/admin/orders/:orderId" element={<AdminOrderDetail />} />
           <Route path="/admin/fleet" element={<AdminFleet />} />
+          <Route path="/admin/revenue" element={<AdminRevenue />} />
 
           {/* Hidden employee routes - not linked in navbar */}
           <Route path="/employee/inventory" element={<Inventory />} />

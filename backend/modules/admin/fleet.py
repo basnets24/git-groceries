@@ -43,9 +43,48 @@ def _format_address(street: str, city: str, state: str, zip_code: str) -> str:
     parts = [p for p in (street, city, state, zip_code) if p]
     return ", ".join(parts)
 
+def complete_finished_trips() -> int:
+    #Reset robots to idle and mark trips completed once their trips finish
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Reset any robot whose current trip has run past its duration.
+        cursor.execute(
+            """
+            UPDATE Robot r
+            JOIN DeliveryTrip dt ON dt.DeliveryTripID = r.CurrentTripID
+            SET r.Status        = 'IDLE',
+                r.CurrentTripID = NULL,
+                r.CurrentLat    = %s,
+                r.CurrentLng    = %s
+            WHERE dt.Status = 'INPROGRESS'
+              AND dt.StartedAt IS NOT NULL
+              AND DATE_ADD(dt.StartedAt, INTERVAL dt.DurationSec SECOND) <= NOW()
+            """,
+            (ROBOT_ORIGIN_LAT, ROBOT_ORIGIN_LNG),
+        )
+        # Mark all elapsed INPROGRESS trips COMPLETED 
+        cursor.execute(
+            """
+            UPDATE DeliveryTrip
+            SET Status = 'COMPLETED'
+            WHERE Status = 'INPROGRESS'
+              AND StartedAt IS NOT NULL
+              AND DurationSec IS NOT NULL
+              AND DATE_ADD(StartedAt, INTERVAL DurationSec SECOND) <= NOW()
+            """
+        )
+        count = cursor.rowcount
+        conn.commit()
+        return count
+    finally:
+        cursor.close()
+        conn.close()
+
 
 def list_fleet() -> List[Dict]:
     """Return every robot with its current location + status."""
+    complete_finished_trips()
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute(

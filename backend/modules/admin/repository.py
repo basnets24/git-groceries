@@ -2,6 +2,92 @@ from typing import Dict, List, Optional
 
 from db import get_db_connection
 
+def fetch_revenue_detail() -> Dict:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute(
+        """
+        SELECT
+            COALESCE(SUM(CASE WHEN DATE(OccurredAt) = CURDATE() THEN Amount END), 0)                       AS daily_revenue,
+            COALESCE(COUNT(CASE WHEN DATE(OccurredAt) = CURDATE() THEN 1 END), 0)                          AS daily_count,
+            COALESCE(SUM(CASE WHEN OccurredAt >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) THEN Amount END), 0)  AS weekly_revenue,
+            COALESCE(COUNT(CASE WHEN OccurredAt >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) THEN 1 END), 0)     AS weekly_count,
+            COALESCE(SUM(Amount), 0)                                                                        AS all_time_revenue,
+            COUNT(*)                                                                                         AS all_time_count
+        FROM Payment
+        WHERE Status = 'SUCCESS'
+        """
+    )
+    s = cursor.fetchone()
+
+    cursor.execute(
+        """
+        SELECT
+            p.Name                                      AS name,
+            SUM(soi.PriceAtCheckout * soi.Quantity)     AS revenue,
+            SUM(soi.Quantity)                           AS units_sold
+        FROM ShoppingOrderItem soi
+        JOIN Product p   ON soi.ProductID = p.ProductID
+        JOIN Payment pay ON soi.ShoppingOrderID = pay.ShoppingOrderID
+        WHERE pay.Status = 'SUCCESS'
+        GROUP BY p.ProductID, p.Name
+        ORDER BY revenue DESC
+        LIMIT 5
+        """
+    )
+    top_products = cursor.fetchall()
+
+    cursor.execute(
+        """
+        SELECT
+            pay.PaymentID       AS payment_id,
+            pay.Amount          AS amount,
+            pay.OccurredAt      AS occurred_at,
+            pay.ShoppingOrderID AS order_id,
+            u.Username          AS customer
+        FROM Payment pay
+        JOIN ShoppingOrder so ON pay.ShoppingOrderID = so.ShoppingOrderID
+        JOIN `User` u          ON so.UserID = u.UserID
+        WHERE pay.Status = 'SUCCESS'
+        ORDER BY pay.OccurredAt DESC
+        LIMIT 15
+        """
+    )
+    transactions = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    def _avg(revenue: float, count: int) -> float:
+        return round(revenue / count, 2) if count else 0.0
+
+    dr, dc = float(s["daily_revenue"]), int(s["daily_count"])
+    wr, wc = float(s["weekly_revenue"]), int(s["weekly_count"])
+    ar, ac = float(s["all_time_revenue"]), int(s["all_time_count"])
+
+    return {
+        "summary": {
+            "daily":    {"revenue": dr, "order_count": dc, "avg_order_value": _avg(dr, dc)},
+            "weekly":   {"revenue": wr, "order_count": wc, "avg_order_value": _avg(wr, wc)},
+            "all_time": {"revenue": ar, "order_count": ac, "avg_order_value": _avg(ar, ac)},
+        },
+        "top_products": [
+            {"name": r["name"], "revenue": float(r["revenue"]), "units_sold": int(r["units_sold"])}
+            for r in top_products
+        ],
+        "recent_transactions": [
+            {
+                "payment_id": r["payment_id"],
+                "amount": float(r["amount"]),
+                "occurred_at": r["occurred_at"].isoformat() if r["occurred_at"] else None,
+                "order_id": r["order_id"],
+                "customer": r["customer"],
+            }
+            for r in transactions
+        ],
+    }
+
 
 def fetch_all_orders() -> List[Dict]:
     conn = get_db_connection()
