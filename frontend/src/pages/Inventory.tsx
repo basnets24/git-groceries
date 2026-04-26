@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
@@ -47,6 +47,36 @@ const Inventory: React.FC = () => {
   const [addSaving, setAddSaving] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const groupedInventory = useMemo(() => {
+    const map = new Map<string, InventoryItem[]>();
+    for (const item of inventory) {
+      const list = map.get(item.category) ?? [];
+      list.push(item);
+      map.set(item.category, list);
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([category, items]) => ({ category, items }));
+  }, [inventory]);
+
+  const visibleItems = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return inventory.filter((i) => {
+      const matchesCategory = selectedCategory === "All" || i.category === selectedCategory;
+      const matchesSearch = !query || i.name.toLowerCase().includes(query);
+      return matchesCategory && matchesSearch;
+    });
+  }, [inventory, selectedCategory, searchQuery]);
+
+  useEffect(() => {
+    setEditingId(null);
+    setEditQuantity(0);
+    setSearchQuery("");
+  }, [selectedCategory]);
 
   const token = () => localStorage.getItem("token");
 
@@ -136,14 +166,16 @@ const Inventory: React.FC = () => {
     setShowAddModal(true);
   };
 
+  useEffect(() => {
+    return () => {
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
     setImageFile(file);
-    if (file) {
-      setImagePreview(URL.createObjectURL(file));
-    } else {
-      setImagePreview(null);
-    }
+    setImagePreview(file ? URL.createObjectURL(file) : null);
   };
 
   const handleAddProduct = async (e: React.FormEvent) => {
@@ -218,7 +250,13 @@ const Inventory: React.FC = () => {
         const data = await res.json();
         throw new Error(data.error || "Failed to delete product");
       }
-      setInventory((prev) => prev.filter((p) => p.id !== item.id));
+      setInventory((prev) => {
+        const next = prev.filter((p) => p.id !== item.id);
+        if (selectedCategory !== "All" && !next.some((p) => p.category === selectedCategory)) {
+          setSelectedCategory("All");
+        }
+        return next;
+      });
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete product");
     }
@@ -237,9 +275,18 @@ const Inventory: React.FC = () => {
                 Employee access only - Track and manage product inventory
               </p>
             </div>
-            <button onClick={handleOpenAddModal} style={styles.addButton}>
-              + Add Product
-            </button>
+            <div style={styles.headerActions}>
+              <input
+                type="text"
+                placeholder="Search by name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={styles.searchInput}
+              />
+              <button onClick={handleOpenAddModal} style={styles.addButton}>
+                + Add Product
+              </button>
+            </div>
           </div>
 
           {loading && (
@@ -264,21 +311,42 @@ const Inventory: React.FC = () => {
             <>
               <div style={styles.statsRow}>
                 <div style={styles.statCard}>
-                  <p style={styles.statValue}>{inventory.length}</p>
+                  <p style={styles.statValue}>{visibleItems.length}</p>
                   <p style={styles.statLabel}>Total Products</p>
                 </div>
                 <div style={styles.statCard}>
                   <p style={styles.statValue}>
-                    {inventory.filter((item) => isLowStock(item)).length}
+                    {visibleItems.filter((item) => isLowStock(item)).length}
                   </p>
                   <p style={styles.statLabel}>Low Stock Items</p>
                 </div>
                 <div style={styles.statCard}>
                   <p style={styles.statValue}>
-                    {inventory.reduce((sum, item) => sum + item.quantity, 0)}
+                    {visibleItems.reduce((sum, item) => sum + item.quantity, 0)}
                   </p>
                   <p style={styles.statLabel}>Total Units</p>
                 </div>
+              </div>
+
+              <div style={styles.categoryGrid}>
+                {[{ category: "All", items: inventory }, ...groupedInventory].map(({ category, items }) => {
+                  const lowCount = items.filter(isLowStock).length;
+                  const active = selectedCategory === category;
+                  return (
+                    <button
+                      key={category}
+                      type="button"
+                      style={{ ...styles.categoryCard, ...(active ? styles.categoryCardActive : {}) }}
+                      onClick={() => setSelectedCategory(category)}
+                    >
+                      <span style={{ ...styles.categoryCardName, ...(active ? styles.categoryCardNameActive : {}) }}>{category}</span>
+                      <span style={{ ...styles.categoryCardCount, ...(active ? styles.categoryCardCountActive : {}) }}>{items.length} items</span>
+                      {lowCount > 0 && (
+                        <span style={styles.categoryLowStock}>{lowCount} low stock</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
               <div style={styles.tableContainer}>
@@ -287,7 +355,7 @@ const Inventory: React.FC = () => {
                     <tr>
                       <th style={styles.th}>ID</th>
                       <th style={styles.th}>Product Name</th>
-                      <th style={styles.th}>Category</th>
+                      {selectedCategory === "All" && <th style={styles.th}>Category</th>}
                       <th style={styles.th}>Price</th>
                       <th style={styles.th}>Quantity</th>
                       <th style={styles.th}>Status</th>
@@ -295,27 +363,28 @@ const Inventory: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {inventory.map((item) => (
-                      <tr
-                        key={item.id}
-                        style={
-                          isLowStock(item)
-                            ? styles.lowStockRow
-                            : styles.tableRow
-                        }
-                      >
+                    {visibleItems.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={selectedCategory === "All" ? 7 : 6}
+                          style={{ ...styles.td, textAlign: "center", color: "#6c757d", padding: "3rem" }}
+                        >
+                          No items match your search.
+                        </td>
+                      </tr>
+                    )}
+                    {visibleItems.map((item) => (
+                      <tr key={item.id} style={isLowStock(item) ? styles.lowStockRow : styles.tableRow}>
                         <td style={styles.td}>{item.id}</td>
                         <td style={styles.td}>{item.name}</td>
-                        <td style={styles.td}>{item.category}</td>
+                        {selectedCategory === "All" && <td style={styles.td}>{item.category}</td>}
                         <td style={styles.td}>${item.price.toFixed(2)}</td>
                         <td style={styles.td}>
                           {editingId === item.id ? (
                             <input
                               type="number"
                               value={editQuantity}
-                              onChange={(e) =>
-                                setEditQuantity(parseInt(e.target.value) || 0)
-                              }
+                              onChange={(e) => setEditQuantity(parseInt(e.target.value) || 0)}
                               style={styles.quantityInput}
                               min="0"
                             />
@@ -324,46 +393,20 @@ const Inventory: React.FC = () => {
                           )}
                         </td>
                         <td style={styles.td}>
-                          <span
-                            style={
-                              isLowStock(item)
-                                ? styles.lowStockBadge
-                                : styles.inStockBadge
-                            }
-                          >
+                          <span style={isLowStock(item) ? styles.lowStockBadge : styles.inStockBadge}>
                             {isLowStock(item) ? "Low Stock" : "In Stock"}
                           </span>
                         </td>
                         <td style={styles.td}>
                           {editingId === item.id ? (
                             <div style={styles.actionButtons}>
-                              <button
-                                onClick={() => handleSaveQuantity(item.id)}
-                                style={styles.saveButton}
-                              >
-                                Save
-                              </button>
-                              <button
-                                onClick={handleCancelEdit}
-                                style={styles.cancelButton}
-                              >
-                                Cancel
-                              </button>
+                              <button onClick={() => handleSaveQuantity(item.id)} style={styles.saveButton}>Save</button>
+                              <button onClick={handleCancelEdit} style={styles.cancelButton}>Cancel</button>
                             </div>
                           ) : (
                             <div style={styles.actionButtons}>
-                              <button
-                                onClick={() => handleEditClick(item)}
-                                style={styles.editButton}
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDeleteProduct(item)}
-                                style={styles.deleteButton}
-                              >
-                                Delete
-                              </button>
+                              <button onClick={() => handleEditClick(item)} style={styles.editButton}>Edit</button>
+                              <button onClick={() => handleDeleteProduct(item)} style={styles.deleteButton}>Delete</button>
                             </div>
                           )}
                         </td>
@@ -530,6 +573,19 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "#6c757d",
     textAlign: "center",
   },
+  headerActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.75rem",
+    flexWrap: "wrap",
+  },
+  searchInput: {
+    padding: "0.75rem 1rem",
+    border: "1px solid #ced4da",
+    borderRadius: "8px",
+    fontSize: "0.95rem",
+    width: "220px",
+  },
   addButton: {
     backgroundColor: "#1b4332",
     color: "#ffffff",
@@ -592,10 +648,59 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "#6c757d",
     margin: "0.5rem 0 0 0",
   },
+  categoryGrid: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "0.75rem",
+    marginBottom: "1.5rem",
+  },
+  categoryCard: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: "0.25rem",
+    padding: "0.875rem 1rem",
+    width: "160px",
+    backgroundColor: "#ffffff",
+    border: "2px solid #e9ecef",
+    borderRadius: "10px",
+    cursor: "pointer",
+    textAlign: "left",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+    outline: "none",
+  },
+  categoryCardActive: {
+    backgroundColor: "#1b4332",
+    borderColor: "#1b4332",
+  },
+  categoryCardName: {
+    fontWeight: 700,
+    fontSize: "0.95rem",
+    color: "#1b4332",
+  },
+  categoryCardNameActive: {
+    color: "#ffffff",
+  },
+  categoryCardCount: {
+    fontSize: "0.8rem",
+    color: "#6c757d",
+  },
+  categoryCardCountActive: {
+    color: "#d8f3dc",
+  },
+  categoryLowStock: {
+    backgroundColor: "#f8d7da",
+    color: "#721c24",
+    fontSize: "0.7rem",
+    fontWeight: 700,
+    padding: "0.15rem 0.5rem",
+    borderRadius: "999px",
+    marginTop: "0.25rem",
+  },
   tableContainer: {
     backgroundColor: "#ffffff",
     borderRadius: "8px",
-    boxShadow: "0 2px 4px rgba(0, 0, 0, 0.08)",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
     overflow: "hidden",
   },
   table: {
