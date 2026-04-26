@@ -49,6 +49,17 @@ const EMPTY_ADDRESS_FORM: AddressForm = {
   isDefault: false,
 };
 
+const SUBSTITUTION_OPTIONS = [
+  "No substitutions",
+  "Allow close substitutions",
+  "Contact me first",
+] as const;
+
+type PrefForm = {
+  substitutionPreference: string;
+  notes: string;
+};
+
 const CustomerProfile: React.FC = () => {
   const { user, loading } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -60,6 +71,10 @@ const CustomerProfile: React.FC = () => {
   const [addressForm, setAddressForm] = useState<AddressForm>(EMPTY_ADDRESS_FORM);
   const [addressError, setAddressError] = useState<string | null>(null);
   const [addressSaving, setAddressSaving] = useState(false);
+  const [showPrefModal, setShowPrefModal] = useState(false);
+  const [prefForm, setPrefForm] = useState<PrefForm>({ substitutionPreference: "", notes: "" });
+  const [prefSaving, setPrefSaving] = useState(false);
+  const [prefError, setPrefError] = useState<string | null>(null);
 
   const fetchProfile = useCallback(async () => {
     if (!user) {
@@ -209,6 +224,40 @@ const CustomerProfile: React.FC = () => {
     }
   };
 
+  const handleOpenEditPref = () => {
+    setPrefForm({
+      substitutionPreference: profile?.substitutionPreference ?? "",
+      notes: profile?.notes ?? "",
+    });
+    setPrefError(null);
+    setShowPrefModal(true);
+  };
+
+  const handlePrefSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPrefError(null);
+    setPrefSaving(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/customers/${user!.customerID}/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          substitutionPreference: prefForm.substitutionPreference || null,
+          notes: prefForm.notes.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save preferences");
+      setShowPrefModal(false);
+      await fetchProfile();
+    } catch (err) {
+      setPrefError(err instanceof Error ? err.message : "Unexpected error");
+    } finally {
+      setPrefSaving(false);
+    }
+  };
+
   if (!loading && !user) {
     return <Navigate to="/login" replace />;
   }
@@ -240,19 +289,25 @@ const CustomerProfile: React.FC = () => {
         {error && <div style={styles.error}>{error}</div>}
 
         <section style={styles.section}>
-          <h2 style={styles.sectionTitle}>Preference</h2>
+          <div style={styles.sectionHeader}>
+            <h2 style={styles.sectionTitle}>Preferences</h2>
+            <button
+              type="button"
+              style={styles.addButton}
+              onClick={handleOpenEditPref}
+              disabled={!profile}
+            >
+              Edit
+            </button>
+          </div>
           {profile ? (
             <div style={styles.profileCard}>
               <p>
-                <strong>Substitution preference:</strong>{" "}
+                <strong>Substitution Preference:</strong>{" "}
                 {profile.substitutionPreference || "Not set"}
               </p>
               <p>
                 <strong>Notes:</strong> {profile.notes || "No notes yet"}
-              </p>
-              <p>
-                <strong>Default address ID:</strong>{" "}
-                {profile.defaultAddressId ?? "None"}
               </p>
             </div>
           ) : (
@@ -332,6 +387,57 @@ const CustomerProfile: React.FC = () => {
           )}
         </section>
       </main>
+
+      {showPrefModal && (
+        <div style={styles.overlay}>
+          <div style={styles.modal}>
+            <h2 style={styles.modalTitle}>Edit Preferences</h2>
+            <form onSubmit={handlePrefSubmit} style={styles.modalForm}>
+              <label style={styles.fieldLabel}>
+                Substitution Preference
+                <select
+                  value={prefForm.substitutionPreference}
+                  onChange={(e) => setPrefForm({ ...prefForm, substitutionPreference: e.target.value })}
+                  style={styles.fieldInput}
+                >
+                  <option value="">-- Select an option --</option>
+                  {SUBSTITUTION_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label style={styles.fieldLabel}>
+                Notes
+                <textarea
+                  value={prefForm.notes}
+                  onChange={(e) => setPrefForm({ ...prefForm, notes: e.target.value })}
+                  style={{ ...styles.fieldInput, resize: "vertical", minHeight: "100px" }}
+                  placeholder="Any additional info you'd like us to know (allergies, access codes, etc.)"
+                />
+              </label>
+
+              {prefError && <p style={styles.modalError}>{prefError}</p>}
+
+              <div style={styles.modalActions}>
+                <button type="submit" style={styles.primaryButton} disabled={prefSaving}>
+                  {prefSaving ? "Saving..." : "Save"}
+                </button>
+                <button
+                  type="button"
+                  style={styles.cancelButton}
+                  onClick={() => setShowPrefModal(false)}
+                  disabled={prefSaving}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {showAddressModal && (
         <div style={styles.overlay}>
