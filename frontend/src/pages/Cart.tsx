@@ -1,180 +1,14 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
-
-interface CartItem {
-  order_id: number;
-  product_id: number;
-  name: string;
-  price: number;
-  category: string;
-  quantity: number;
-  price_at_checkout: number;
-  weight_at_checkout: number;
-}
+import { useCart } from "../context/CartContext";
 
 const Cart: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
+  const { items, pendingUpdates, cartLoading, updateQuantity, removeItem } = useCart();
   const navigate = useNavigate();
-  const [items, setItems] = useState<CartItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [pendingUpdates, setPendingUpdates] = useState<Set<number>>(new Set());
-
-  const customerId = user?.customerID;
-
-  const fetchCart = useCallback(async () => {
-    if (!customerId) {
-      setError("You need to be signed in to view your cart.");
-      setLoading(false);
-      return;
-    }
-
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setError("Session expired. Please log in again.");
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/cart/${customerId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) {
-        throw new Error("Failed to fetch cart");
-      }
-      const data = await response.json();
-      setItems(data.items);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
-      setLoading(false);
-    }
-  }, [customerId]);
-
-  useEffect(() => {
-    if (!authLoading) {
-      fetchCart();
-    }
-  }, [authLoading, fetchCart]);
-
-  const handleQuantityChange = async (item: CartItem, delta: number) => {
-    const currentQty = item.quantity;
-    const newQty = currentQty + delta;
-
-    // Prevent going below 0
-    if (newQty < 0) {
-      return;
-    }
-
-    // Don't allow updates if already pending
-    if (pendingUpdates.has(item.product_id)) {
-      return;
-    }
-
-    if (!user) {
-      return;
-    }
-
-    const token = localStorage.getItem("token");
-    if (!token) {
-      return;
-    }
-
-    // Mark this product as pending
-    setPendingUpdates((prev) => new Set(prev).add(item.product_id));
-
-    try {
-      // Send the delta (change amount), not the absolute quantity
-      // The backend will add this to the existing quantity
-      const response = await fetch(`/api/cart/${user.customerID}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ product_id: item.product_id, quantity: delta }),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || "Failed to update cart");
-      }
-
-      // Update local state with the new absolute quantity
-      setItems((prevItems) =>
-        prevItems
-          .map((i) =>
-            i.product_id === item.product_id ? { ...i, quantity: newQty } : i
-          )
-          .filter((i) => i.quantity > 0)
-      );
-    } catch (err) {
-      console.error(err);
-    } finally {
-      // Clear pending state
-      setPendingUpdates((prev) => {
-        const next = new Set(prev);
-        next.delete(item.product_id);
-        return next;
-      });
-    }
-  };
-
-  const handleRemoveItem = async (item: CartItem) => {
-    // Don't allow updates if already pending
-    if (pendingUpdates.has(item.product_id)) {
-      return;
-    }
-
-    if (!user) {
-      return;
-    }
-
-    const token = localStorage.getItem("token");
-    if (!token) {
-      return;
-    }
-
-    // Mark this product as pending
-    setPendingUpdates((prev) => new Set(prev).add(item.product_id));
-
-    try {
-      // Remove all quantity of this item (set to 0)
-      const response = await fetch(`/api/cart/${user.customerID}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ product_id: item.product_id, quantity: -item.quantity }),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || "Failed to remove item");
-      }
-
-      // Remove item from local state
-      setItems((prevItems) =>
-        prevItems.filter((i) => i.product_id !== item.product_id)
-      );
-    } catch (err) {
-      console.error(err);
-    } finally {
-      // Clear pending state
-      setPendingUpdates((prev) => {
-        const next = new Set(prev);
-        next.delete(item.product_id);
-        return next;
-      });
-    }
-  };
 
   const subtotal = items.reduce(
     (sum, item) => sum + item.price_at_checkout * item.quantity,
@@ -200,25 +34,13 @@ const Cart: React.FC = () => {
         <div style={styles.container}>
           <h1 style={styles.pageTitle}>Shopping Cart</h1>
 
-          {loading && (
+          {(authLoading || cartLoading) && (
             <div style={styles.loadingContainer}>
               <p style={styles.loadingText}>Loading cart...</p>
             </div>
           )}
 
-          {error && (
-            <div style={styles.errorContainer}>
-              <p style={styles.errorText}>Error: {error}</p>
-              <button
-                onClick={() => window.location.reload()}
-                style={styles.retryButton}
-              >
-                Retry
-              </button>
-            </div>
-          )}
-
-          {!loading && !error && items.length === 0 && (
+          {!authLoading && !cartLoading && items.length === 0 && (
             <div style={styles.emptyCard}>
               <p style={styles.emptyTitle}>Your cart is empty</p>
               <p style={styles.emptySubtext}>
@@ -230,7 +52,7 @@ const Cart: React.FC = () => {
             </div>
           )}
 
-          {!loading && !error && items.length > 0 && (
+          {!authLoading && !cartLoading && items.length > 0 && (
             <>
               <div style={styles.tableContainer}>
                 <table style={styles.table}>
@@ -259,7 +81,7 @@ const Cart: React.FC = () => {
                         <td style={styles.td}>
                           <div style={styles.quantityContainer}>
                             <button
-                              onClick={() => handleQuantityChange(item, -1)}
+                              onClick={() => updateQuantity(item.product_id, -1)}
                               style={{
                                 ...styles.quantityButton,
                                 opacity: item.quantity === 0 || pendingUpdates.has(item.product_id) ? 0.5 : 1,
@@ -273,7 +95,7 @@ const Cart: React.FC = () => {
                               {item.quantity}
                             </span>
                             <button
-                              onClick={() => handleQuantityChange(item, 1)}
+                              onClick={() => updateQuantity(item.product_id, 1)}
                               style={{
                                 ...styles.quantityButton,
                                 opacity: pendingUpdates.has(item.product_id) ? 0.5 : 1,
@@ -290,7 +112,7 @@ const Cart: React.FC = () => {
                         </td>
                         <td style={styles.td}>
                           <button
-                            onClick={() => handleRemoveItem(item)}
+                            onClick={() => removeItem(item.product_id)}
                             style={styles.removeButton}
                           >
                             Remove

@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 const Navbar: React.FC = () => {
   const { user, loading } = useAuth();
 
-  const isStaff = user && user.role !== "CUSTOMER";
+  const isCustomer = !user || user.role === "CUSTOMER";
 
   return (
     <nav style={styles.navbar}>
@@ -14,31 +14,19 @@ const Navbar: React.FC = () => {
           OFS
         </Link>
         <div style={styles.navLinks}>
-          {user && (
+          {user && isCustomer && (
             <>
-              <Link to="/delivery" style={styles.link}>
-                Delivery
-              </Link>
-              <Link to="/catalog" style={styles.link}>
-                Catalog
-              </Link>
-              <Link to="/cart" style={styles.link}>
-                Cart
-              </Link>
-              <Link to="/orders" style={styles.link}>
-                Orders
-              </Link>
-              <Link to="/profile" style={styles.link}>
-                Profile
-              </Link>
-              <Link to="/about" style={styles.link}>
-                About
-              </Link>
-              {isStaff && (
-                <Link to="/admin" style={styles.link}>
-                  Admin
-                </Link>
-              )}
+              <Link to="/delivery" style={styles.link}>Delivery</Link>
+              <Link to="/catalog" style={styles.link}>Catalog</Link>
+              <Link to="/cart" style={styles.link}>Cart</Link>
+              <Link to="/orders" style={styles.link}>Orders</Link>
+              <Link to="/profile" style={styles.link}>Profile</Link>
+            </>
+          )}
+          {user && !isCustomer && (
+            <>
+              <Link to="/admin" style={styles.link}>Admin Dashboard</Link>
+              <Link to="/profile" style={styles.link}>Profile</Link>
             </>
           )}
           <div style={styles.authLinks}>

@@ -82,6 +82,12 @@ const AdminDashboard: React.FC = () => {
     }
   }, [assignableRoles, selectedRole]);
 
+  useEffect(() => {
+    if (!status) return;
+    const timer = setTimeout(() => setStatus(null), 4000);
+    return () => clearTimeout(timer);
+  }, [status]);
+
 
   const canAssignRoles = assignableRoles.length > 0;
   const isValidTarget = /^\d+$/.test(targetUserId.trim());
@@ -131,6 +137,9 @@ const AdminDashboard: React.FC = () => {
         message: data?.message || `Assigned ${selectedRole} to user #${data?.userID ?? trimmedId}.`,
       });
       setTargetUserId("");
+      setSearchResults((prev) =>
+        prev.map((u) => u.userID === Number(trimmedId) ? { ...u, role: selectedRole } : u)
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to assign role.";
       setStatus({ type: "error", message });
@@ -218,8 +227,34 @@ const AdminDashboard: React.FC = () => {
           </div>
         </header>
 
+        <section style={styles.grid}>
+          {tiles.map((tile) => (
+            <article key={tile.title} style={styles.card}>
+              <div>
+                <div style={styles.cardHeader}>
+                  <h2 style={styles.cardTitle}>{tile.title}</h2>
+                  {tile.status && (
+                    <span style={styles.status}>{tile.status}</span>
+                  )}
+                </div>
+                <p style={styles.cardText}>{tile.description}</p>
+              </div>
+              {tile.to ? (
+                <Link to={tile.to} style={styles.cardLink}>
+                  {tile.cta}
+                </Link>
+              ) : (
+                <button type="button" style={styles.cardButton} disabled>
+                  {tile.cta}
+                </button>
+              )}
+            </article>
+          ))}
+        </section>
+
         {canAssignRoles && (
           <>
+          <div style={styles.twoCol}>
             <section style={styles.searchPanel}>
               <div style={styles.rolePanelCopy}>
                 <p style={styles.roleEyebrow}>Directory</p>
@@ -229,19 +264,39 @@ const AdminDashboard: React.FC = () => {
                 </p>
               </div>
               <form style={styles.searchForm} onSubmit={handleSearchUsers}>
-                <input
-                  type="text"
-                  placeholder="e.g. staff@example.com"
-                  value={emailQuery}
-                  onChange={(event) => setEmailQuery(event.target.value)}
-                  style={styles.roleInput}
-                />
-                <button type="submit" style={styles.roleButton} disabled={searching}>
+                <label style={styles.roleField}>
+                  <span style={styles.roleLabel}>Email address</span>
+                  <input
+                    type="text"
+                    placeholder="e.g. staff@example.com"
+                    value={emailQuery}
+                    onChange={(event) => setEmailQuery(event.target.value)}
+                    style={styles.roleInput}
+                  />
+                </label>
+                {emailQuery && (
+                  <button
+                    type="button"
+                    style={styles.clearButton}
+                    onClick={() => {
+                      setEmailQuery("");
+                      setSearchResults([]);
+                      setSearchError(null);
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  style={{ ...styles.roleButton, cursor: searching ? "not-allowed" : "pointer" }}
+                  disabled={searching}
+                >
                   {searching ? "Searching..." : "Search"}
                 </button>
               </form>
               {searchError && <p style={styles.searchError}>{searchError}</p>}
-              {searchResults.length > 0 && (
+              {searchResults.length > 0 ? (
                 <div style={styles.resultsList}>
                   {searchResults.map((result) => (
                     <div key={result.userID} style={styles.resultRow}>
@@ -261,6 +316,14 @@ const AdminDashboard: React.FC = () => {
                     </div>
                   ))}
                 </div>
+              ) : !searchError && (
+                <div style={styles.searchEmpty}>
+                  <p style={styles.searchEmptyTitle}>No results yet</p>
+                  <p style={styles.searchEmptyHint}>
+                    Try searching by a partial email — e.g. <em>"staff"</em> or <em>"@ofs"</em>.
+                    Results will appear here with a one-click shortcut to load them into the assignment form.
+                  </p>
+                </div>
               )}
             </section>
 
@@ -269,7 +332,7 @@ const AdminDashboard: React.FC = () => {
                 <p style={styles.roleEyebrow}>User access</p>
                 <h2 style={styles.roleTitle}>Assign roles</h2>
                 <p style={styles.roleSubtitle}>
-                  Superadmins can elevate managers or onboard employees. Managers can add new employees
+                  Superadmins can add managers & employees. Managers can add new employees
                   but cannot modify other managers or superadmins.
                 </p>
               </div>
@@ -304,7 +367,7 @@ const AdminDashboard: React.FC = () => {
 
                 <button
                   type="submit"
-                  style={styles.roleButton}
+                  style={{ ...styles.roleButton, cursor: (assigning || !isValidTarget) ? "not-allowed" : "pointer" }}
                   disabled={assigning || !isValidTarget}
                 >
                   {assigning ? "Assigning..." : "Assign role"}
@@ -324,35 +387,25 @@ const AdminDashboard: React.FC = () => {
                   {status.message}
                 </div>
               )}
+
+              <div style={styles.roleRef}>
+                <p style={styles.roleRefTitle}>Role permissions</p>
+                {[
+                  { role: "EMPLOYEE", perms: "Inventory management, order viewing" },
+                  { role: "MANAGER", perms: "All employee access + assign employees" },
+                  { role: "SUPERADMIN", perms: "Full access + assign managers" },
+                ].map(({ role, perms }) => (
+                  <div key={role} style={styles.roleRefRow}>
+                    <span style={styles.roleRefBadge}>{role}</span>
+                    <span style={styles.roleRefPerms}>{perms}</span>
+                  </div>
+                ))}
+              </div>
             </section>
+          </div>
           </>
         )}
 
-        <section style={styles.grid}>
-          {tiles.map((tile) => (
-            <article key={tile.title} style={styles.card}>
-              <div>
-                <div style={styles.cardHeader}>
-                  <h2 style={styles.cardTitle}>{tile.title}</h2>
-                  {tile.status && (
-                    <span style={styles.status}>{tile.status}</span>
-                  )}
-                </div>
-                <p style={styles.cardText}>{tile.description}</p>
-              </div>
-              {tile.to ? (
-                <Link to={tile.to} style={styles.cardLink}>
-                  {tile.cta}
-                </Link>
-              ) : (
-                <button type="button" style={styles.cardButton} disabled>
-                  {tile.cta}
-                </button>
-              )}
-            </article>
-          ))}
-
-        </section>
       </main>
     </div>
   );
@@ -411,8 +464,14 @@ const styles: { [key: string]: React.CSSProperties } = {
     gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
     gap: "1.5rem",
   },
-  searchPanel: {
+  twoCol: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "2rem",
+    alignItems: "stretch",
     marginTop: "2rem",
+  },
+  searchPanel: {
     padding: "2rem",
     backgroundColor: "#ffffff",
     borderRadius: "12px",
@@ -425,6 +484,39 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     gap: "0.75rem",
     flexWrap: "wrap",
+    alignItems: "flex-end",
+  },
+  searchEmpty: {
+    marginTop: "auto",
+    padding: "1.5rem",
+    backgroundColor: "#f8f9fa",
+    borderRadius: "10px",
+    border: "1px dashed #ced4da",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+  },
+  searchEmptyTitle: {
+    margin: 0,
+    fontWeight: 600,
+    color: "#495057",
+  },
+  searchEmptyHint: {
+    margin: 0,
+    fontSize: "0.875rem",
+    color: "#6c757d",
+    lineHeight: 1.5,
+  },
+  clearButton: {
+    padding: "0 0.9rem",
+    borderRadius: "8px",
+    border: "1px solid #ced4da",
+    backgroundColor: "#ffffff",
+    color: "#6c757d",
+    cursor: "pointer",
+    fontSize: "1rem",
+    height: "2.875rem",
+    boxSizing: "border-box",
   },
   searchError: {
     margin: 0,
@@ -468,7 +560,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     whiteSpace: "nowrap",
   },
   rolePanel: {
-    marginTop: "2rem",
     padding: "2rem",
     backgroundColor: "#ffffff",
     borderRadius: "12px",
@@ -498,8 +589,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     lineHeight: 1.5,
   },
   roleForm: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    display: "flex",
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: "1rem",
     alignItems: "flex-end",
   },
@@ -507,38 +599,84 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     flexDirection: "column",
     gap: "0.4rem",
+    flex: 1,
+    minWidth: "0",
   },
   roleLabel: {
     fontWeight: 600,
     color: "#495057",
   },
   roleInput: {
-    padding: "0.75rem",
+    padding: "0 0.75rem",
     borderRadius: "8px",
     border: "1px solid #ced4da",
     fontSize: "1rem",
+    height: "2.875rem",
+    boxSizing: "border-box",
   },
   roleSelect: {
-    padding: "0.75rem",
+    padding: "0 0.75rem",
     borderRadius: "8px",
     border: "1px solid #ced4da",
     backgroundColor: "#fff",
     fontSize: "1rem",
+    height: "2.875rem",
+    boxSizing: "border-box",
   },
   roleButton: {
-    padding: "0.85rem 1.5rem",
+    padding: "0 1.5rem",
     borderRadius: "8px",
-    border: "none",
+    border: "1px solid transparent",
     fontWeight: 600,
     backgroundColor: "#1b4332",
     color: "#fff",
     cursor: "pointer",
+    height: "2.875rem",
+    boxSizing: "border-box",
   },
   roleHelper: {
-    gridColumn: "1 / -1",
+    flexBasis: "100%",
     margin: 0,
     fontSize: "0.85rem",
     color: "#6c757d",
+  },
+  roleRef: {
+    marginTop: "auto",
+    padding: "1.25rem",
+    backgroundColor: "#f8f9fa",
+    borderRadius: "10px",
+    border: "1px solid #dee2e6",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.75rem",
+  },
+  roleRefTitle: {
+    margin: 0,
+    fontWeight: 600,
+    fontSize: "0.85rem",
+    color: "#495057",
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+  },
+  roleRefRow: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "0.75rem",
+  },
+  roleRefBadge: {
+    flexShrink: 0,
+    fontSize: "0.75rem",
+    fontWeight: 700,
+    padding: "0.2rem 0.5rem",
+    borderRadius: "4px",
+    backgroundColor: "#40916c",
+    color: "#ffffff",
+    letterSpacing: "0.05em",
+  },
+  roleRefPerms: {
+    fontSize: "0.875rem",
+    color: "#6c757d",
+    lineHeight: 1.4,
   },
   feedbackBase: {
     padding: "0.9rem 1rem",
@@ -601,45 +739,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     border: "none",
     cursor: "pointer",
     display: "inline-block",
-  },
-  cardBackButton: {
-    marginTop: "1rem",
-    alignSelf: "flex-start",
-    background: "none",
-    border: "none",
-    color: "#40916c",
-    fontWeight: 600,
-    cursor: "pointer",
-    padding: 0,
-    fontSize: "0.9rem",
-  },
-  revenueTabs: {
-    display: "flex",
-    gap: "0.4rem",
-    flexWrap: "wrap" as const,
-    marginTop: "0.75rem",
-  },
-  revenueTab: {
-    padding: "0.35rem 0.8rem",
-    borderRadius: "999px",
-    border: "1px solid #ced4da",
-    backgroundColor: "#f8f9fa",
-    color: "#495057",
-    fontWeight: 500,
-    cursor: "pointer",
-    fontSize: "0.8rem",
-  },
-  revenueTabActive: {
-    backgroundColor: "#1b4332",
-    color: "#ffffff",
-    border: "1px solid #1b4332",
-  },
-  revenueAmount: {
-    margin: "1rem 0 0",
-    fontSize: "2rem",
-    fontWeight: 700,
-    color: "#1b4332",
-    letterSpacing: "-0.02em",
   },
   cardButton: {
     marginTop: "1rem",

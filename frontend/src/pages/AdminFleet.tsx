@@ -151,6 +151,7 @@ const AdminFleet: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [nowTick, setNowTick] = useState(0);
 
+  const fetchTimestampRef = useRef<number>(Date.now());
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const robotMarkersRef = useRef<Record<number, any>>({});
@@ -190,6 +191,7 @@ const AdminFleet: React.FC = () => {
       setRobots(robotsData.robots || []);
       setOrders(pendingData.orders || []);
       setAutoDispatchAfterSec(pendingData.auto_dispatch_after_sec ?? 300);
+      fetchTimestampRef.current = Date.now();
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load fleet data");
@@ -209,6 +211,12 @@ const AdminFleet: React.FC = () => {
     const id = setInterval(() => setNowTick((t) => t + 1), COUNTDOWN_INTERVAL_MS);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (!status) return;
+    const timer = setTimeout(() => setStatus(null), 4000);
+    return () => clearTimeout(timer);
+  }, [status]);
 
   // Clean up stale assignments when the pending list changes.
   useEffect(() => {
@@ -631,10 +639,11 @@ const AdminFleet: React.FC = () => {
               <div style={styles.section}>
                 <h3 style={styles.sectionTitle}>Unassigned ({unassigned.length})</h3>
                 {unassigned.map((o) => {
+                  const elapsedSec = Math.floor((Date.now() - fetchTimestampRef.current) / 1000);
                   const auto =
                     o.seconds_until_auto_dispatch === null
                       ? null
-                      : Math.max(0, o.seconds_until_auto_dispatch - nowTick);
+                      : Math.max(0, o.seconds_until_auto_dispatch - elapsedSec);
                   return (
                     <div key={o.order_id} style={styles.orderRow}>
                       <div>
@@ -776,7 +785,18 @@ const AdminFleet: React.FC = () => {
 
             {sessionTrips.length > 0 && (
               <div style={styles.section}>
-                <h3 style={styles.sectionTitle}>Active Trips ({sessionTrips.length})</h3>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h3 style={styles.sectionTitle}>Active Trips ({sessionTrips.length})</h3>
+                  {sessionTrips.some((t) => (tripProgress[t.trip_id] ?? 0) >= 1.0) && (
+                    <button
+                      type="button"
+                      style={styles.clearDoneButton}
+                      onClick={() => setSessionTrips((prev) => prev.filter((t) => (tripProgress[t.trip_id] ?? 0) < 1.0))}
+                    >
+                      Clear done
+                    </button>
+                  )}
+                </div>
                 {sessionTrips.map((trip) => {
                   const color = ROBOT_COLORS[(trip.robot_id - 1) % ROBOT_COLORS.length];
                   const robot = robots.find((r) => r.robot_id === trip.robot_id);
@@ -884,10 +904,11 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    padding: "0.75rem 1.25rem",
+    justifyContent: "center",
+    padding: "0.75rem 0",
     backgroundColor: "#f1f3f5",
     borderRadius: 10,
-    minWidth: 80,
+    width: 100,
   },
   statValue: { fontSize: "1.5rem", fontWeight: 700, color: "#1b4332" },
   statLabel: {
@@ -917,7 +938,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   map: {
     width: "100%",
-    height: 640,
+    height: 680,
     borderRadius: 12,
     overflow: "hidden",
     boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
@@ -931,7 +952,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: "flex",
     flexDirection: "column",
     gap: "1rem",
-    maxHeight: 720,
+    height: 680,
+    boxSizing: "border-box",
     overflowY: "auto",
   },
   sidebarTitle: { margin: 0, color: "#1b4332", fontSize: "1.25rem" },
@@ -1079,6 +1101,15 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderTop: "1px dashed #dee2e6",
   },
   muted: { color: "#6c757d", margin: 0 },
+  clearDoneButton: {
+    background: "none",
+    border: "none",
+    color: "#40916c",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    padding: 0,
+  },
 };
 
 export default AdminFleet;

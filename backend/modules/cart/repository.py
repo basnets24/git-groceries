@@ -15,11 +15,13 @@ def fetch_active_cart_items(customer_id: int) -> List[Dict]:
                pc.Name AS category,
                soi.Quantity AS quantity,
                soi.PriceAtCheckout AS price_at_checkout,
-               soi.WeightAtCheckout AS weight_at_checkout
+               soi.WeightAtCheckout AS weight_at_checkout,
+               COALESCE(i.QuantityInStock, 0) AS quantity_in_stock
         FROM ShoppingOrder so
         JOIN ShoppingOrderItem soi ON so.ShoppingOrderID = soi.ShoppingOrderID
         JOIN Product p ON soi.ProductID = p.ProductID
         JOIN ProductCategory pc ON p.ProductCategoryID = pc.ProductCategoryID
+        LEFT JOIN Inventory i ON p.ProductID = i.ProductID
         WHERE so.UserID = %s AND so.Status = 'INPROGRESS'
         ORDER BY soi.ProductID
         """,

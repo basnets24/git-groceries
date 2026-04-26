@@ -10,7 +10,8 @@ CREATE TABLE `User` (
 CREATE TABLE ProductCategory (
     ProductCategoryID INT AUTO_INCREMENT PRIMARY KEY,
 
-    Name            VARCHAR(50) NOT NULL
+    Name            VARCHAR(50)  NOT NULL,
+    Description     VARCHAR(255) NULL
 );
 
 CREATE TABLE Product (

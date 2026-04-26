@@ -8,7 +8,6 @@ import Catalog from "./pages/Catalog";
 import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
 import Orders from "./pages/Orders";
-import About from "./pages/About";
 import Register from "./pages/Register";
 import Delivery from "./pages/Delivery";
 import Inventory from "./pages/Inventory";
@@ -21,20 +20,23 @@ import AdminFleet from "./pages/AdminFleet";
 import AdminRevenue from "./pages/AdminRevenue";
 import CustomerProfile from "./pages/CustomerProfile";
 import { AuthProvider } from "./context/AuthContext";
+import { CartProvider } from "./context/CartContext";
+import CartWidget from "./components/CartWidget";
 
 
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
+      <CartProvider>
+        <BrowserRouter>
+          <CartWidget />
+          <Routes>
           {/* Public routes */}
           <Route path="/" element={<Home />} />
           <Route path="/catalog" element={<Catalog />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/orders" element={<Orders />} />
-          <Route path="/about" element={<About />} />
           <Route path="/delivery" element={<Delivery />} />
           <Route path="/login" element={<Login />} />
           <Route path="/logout" element={<Logout />} />
@@ -51,7 +53,8 @@ function App() {
           {/* Hidden employee routes - not linked in navbar */}
           <Route path="/employee/inventory" element={<Inventory />} />
         </Routes>
-      </BrowserRouter>
+        </BrowserRouter>
+      </CartProvider>
     </AuthProvider>
   );
 }

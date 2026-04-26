@@ -8,13 +8,13 @@ VALUES
     ('diyaa', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'diya.dalal@sjsu.edu', 'EMPLOYEE'),
     ('ofsadmin', '$2b$12$p2uwRjXA5CMI8fpMUGsP/.Gr.vYTsK5CcQt..dxtqPHvTpZZACjia', 'admin@ofs.local', 'SUPERADMIN');
 
-INSERT INTO ProductCategory (Name)
+INSERT INTO ProductCategory (Name, Description)
 VALUES
-    ('Fresh Produce'),
-    ('Deli Meats'),
-    ('Dairy'),
-    ('Bakery'),
-    ('Beverages');
+    ('Fresh Produce', 'Fruits & farm-fresh vegetables'),
+    ('Deli Meats',    'Premium quality deli meats'),
+    ('Dairy',         'Milk, cheese & eggs'),
+    ('Bakery',        'Fresh baked breads & pastries'),
+    ('Beverages',     'Juices, drinks & more');
 
 INSERT INTO Product (Name, Price, WeightLbs, ProductCategoryID, ImageURL, isActive)
 VALUES
