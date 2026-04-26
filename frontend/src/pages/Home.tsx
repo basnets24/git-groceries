@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
@@ -322,6 +322,10 @@ const Home: React.FC = () => {
         <Navbar />
       </div>
     );
+  }
+
+  if (user && user.role !== "CUSTOMER") {
+    return <Navigate to="/admin" replace />;
   }
 
   return user ? <AuthenticatedHome /> : <GuestHome />;
