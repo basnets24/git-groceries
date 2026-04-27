@@ -169,3 +169,112 @@ class TestUserSearch:
                 token=users["customer"]["token"],
                 params={"email": "test"})
         assert r.status_code == 403
+
+
+# ── §7.9 — RBAC: protected endpoints enforce 403 on wrong role ─
+
+class TestRbacCustomerBlocked:
+    """CUSTOMER token must receive 403 on every EMPLOYEE+ endpoint."""
+
+    def test_inventory_update_customer_forbidden(self, users):
+        r = api("PUT", "/api/inventory/1",
+                token=users["customer"]["token"],
+                json={"quantity": 5})
+        assert r.status_code == 403
+
+    def test_product_create_customer_forbidden(self, users):
+        r = api("POST", "/api/products",
+                token=users["customer"]["token"],
+                json={"name": "x", "price": 1.0, "weight": 1.0, "category_id": 1})
+        assert r.status_code == 403
+
+    def test_product_delete_customer_forbidden(self, users):
+        r = api("DELETE", "/api/products/1",
+                token=users["customer"]["token"])
+        assert r.status_code == 403
+
+    def test_admin_orders_list_customer_forbidden(self, users):
+        r = api("GET", "/api/admin/orders",
+                token=users["customer"]["token"])
+        assert r.status_code == 403
+
+    def test_admin_order_detail_customer_forbidden(self, users):
+        r = api("GET", "/api/admin/orders/1",
+                token=users["customer"]["token"])
+        assert r.status_code == 403
+
+    def test_admin_robots_customer_forbidden(self, users):
+        r = api("GET", "/api/admin/robots",
+                token=users["customer"]["token"])
+        assert r.status_code == 403
+
+    def test_dispatch_pending_customer_forbidden(self, users):
+        r = api("GET", "/api/admin/dispatch/pending",
+                token=users["customer"]["token"])
+        assert r.status_code == 403
+
+    def test_dispatch_confirm_customer_forbidden(self, users):
+        r = api("POST", "/api/admin/dispatch/confirm",
+                token=users["customer"]["token"],
+                json={"robot_id": 1, "order_ids": []})
+        assert r.status_code == 403
+
+    def test_dispatch_auto_customer_forbidden(self, users):
+        r = api("POST", "/api/admin/dispatch/auto",
+                token=users["customer"]["token"])
+        assert r.status_code == 403
+
+    def test_admin_revenue_customer_forbidden(self, users):
+        r = api("GET", "/api/admin/revenue",
+                token=users["customer"]["token"])
+        assert r.status_code == 403
+
+    def test_admin_trip_detail_customer_forbidden(self, users):
+        r = api("GET", "/api/admin/trips/1",
+                token=users["customer"]["token"])
+        assert r.status_code == 403
+
+
+class TestRbacEmployeeBlocked:
+    """EMPLOYEE token must receive 403 on MANAGER-only endpoints."""
+
+    def test_robot_location_update_employee_forbidden(self, users):
+        """PATCH /api/admin/robots/<id>/location requires MANAGER or higher."""
+        r = api("PATCH", "/api/admin/robots/1/location",
+                token=users["employee"]["token"],
+                json={"lat": 37.3382, "lng": -121.8863})
+        assert r.status_code == 403
+
+    def test_role_assignment_employee_forbidden(self, users):
+        """PUT /api/auth/users/<id>/role requires MANAGER or higher."""
+        r = api("PUT", f"/api/auth/users/{users['customer']['id']}/role",
+                token=users["employee"]["token"],
+                json={"role": "EMPLOYEE"})
+        assert r.status_code == 403
+
+    def test_user_search_employee_forbidden(self, users):
+        """GET /api/auth/users is MANAGER+; EMPLOYEE must also get 403."""
+        r = api("GET", "/api/auth/users",
+                token=users["employee"]["token"],
+                params={"email": "test"})
+        assert r.status_code == 403
+
+
+class TestRbacNoToken:
+    """No token must return 401 on any protected endpoint."""
+
+    def test_inventory_update_no_token(self):
+        r = api("PUT", "/api/inventory/1", json={"quantity": 5})
+        assert r.status_code == 401
+
+    def test_admin_orders_no_token(self):
+        r = api("GET", "/api/admin/orders")
+        assert r.status_code == 401
+
+    def test_admin_revenue_no_token(self):
+        r = api("GET", "/api/admin/revenue")
+        assert r.status_code == 401
+
+    def test_dispatch_confirm_no_token(self):
+        r = api("POST", "/api/admin/dispatch/confirm", json={})
+        assert r.status_code == 401
