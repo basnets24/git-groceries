@@ -1,23 +1,12 @@
 import React from "react";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import Home from "./pages/Home";
-import Register from "./pages/Register";
-import { renderWithProviders, setupTest } from "./test-utils";
+import Register from "../pages/Register";
+import { renderWithProviders, setupTest } from "../test-utils";
 
 beforeEach(setupTest);
 
-describe("App Integration", () => {
-  test("renders the guest home experience", () => {
-    renderWithProviders(<Home />);
-
-    expect(screen.getByText(/fresh organic food delivered to your door/i)).toBeInTheDocument();
-    expect(screen.getByText(/browse by category/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /login/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /register/i })).toBeInTheDocument();
-  });
-
-  test("register shows password mismatch error", async () => {
+test("shows a validation error when register passwords do not match", async () => {
     renderWithProviders(<Register />);
 
     await userEvent.type(screen.getByLabelText(/username/i), "new_customer");
@@ -27,5 +16,4 @@ describe("App Integration", () => {
     await userEvent.click(screen.getByRole("button", { name: /sign up/i }));
 
     expect(screen.getByText(/passwords do not match/i)).toBeInTheDocument();
-  });
 });
