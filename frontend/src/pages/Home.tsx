@@ -289,11 +289,11 @@ const GuestHome: React.FC = () => (
     <section style={styles.coverageSection}>
       <div style={styles.sectionContainer}>
         <h2 style={styles.sectionTitle}>Delivery Coverage</h2>
-        <p style={styles.coverageSubtitle}>We currently deliver within 10 miles of Downtown San Jose</p>
+        <p style={styles.coverageSubtitle}>We currently deliver within 18 miles of Downtown San Jose</p>
         <div style={styles.coverageCards}>
           <div style={styles.coverageCard}>
             <h3 style={styles.coverageCardTitle}>Coverage Area</h3>
-            <p style={styles.coverageCardText}>Within 10 miles of Downtown San Jose, CA</p>
+            <p style={styles.coverageCardText}>Within 18 miles of Downtown San Jose, CA</p>
           </div>
           <div style={styles.coverageCard}>
             <h3 style={styles.coverageCardTitle}>Live Tracking</h3>
