@@ -158,16 +158,6 @@ const Cart: React.FC = () => {
                 </button>
               </div>
 
-              <div style={styles.deliverySection}>
-                <h2 style={styles.deliverySectionTitle}>Delivery Options</h2>
-                <p style={styles.deliveryText}>
-                  Track your delivery in real-time with our automated delivery
-                  bots.
-                </p>
-                <Link to="/delivery-bots" style={styles.deliveryBotsLink}>
-                  View Delivery Bots
-                </Link>
-              </div>
             </>
           )}
         </div>
@@ -345,35 +335,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: 600,
     cursor: "pointer",
     transition: "background-color 0.2s",
-  },
-  deliverySection: {
-    marginTop: "1.5rem",
-    padding: "2rem",
-    backgroundColor: "#ffffff",
-    borderRadius: "12px",
-    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)",
-    textAlign: "center",
-  },
-  deliverySectionTitle: {
-    fontSize: "1.5rem",
-    fontWeight: 600,
-    color: "#1b4332",
-    marginBottom: "0.75rem",
-  },
-  deliveryText: {
-    fontSize: "1rem",
-    color: "#6c757d",
-    marginBottom: "1rem",
-  },
-  deliveryBotsLink: {
-    display: "inline-block",
-    backgroundColor: "#2d6a4f",
-    color: "#ffffff",
-    padding: "0.75rem 1.5rem",
-    borderRadius: "6px",
-    textDecoration: "none",
-    fontWeight: 600,
-    fontSize: "1rem",
   },
   quantityContainer: {
     display: "flex",
