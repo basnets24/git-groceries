@@ -2,10 +2,13 @@ import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
+from dotenv import load_dotenv
 from db import get_db_connection
 from exceptions import ValidationError
 from integrations.google_maps.client import GoogleMapsClient, GoogleMapsConfig
 from .geo import DELIVERY_RADIUS_MILES, ORIGIN_LAT, ORIGIN_LNG, haversine_miles
+
+load_dotenv()  # load environment variables before accessing them
 
 config = GoogleMapsConfig(api_key=os.getenv("GOOGLE_MAPS_API_KEY"))
 client = GoogleMapsClient(config)
