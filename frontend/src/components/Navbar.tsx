@@ -24,10 +24,7 @@ const Navbar: React.FC = () => {
             </>
           )}
           {user && !isCustomer && (
-            <>
-              <Link to="/admin" style={styles.link}>Admin Dashboard</Link>
-              <Link to="/profile" style={styles.link}>Profile</Link>
-            </>
+            <Link to="/admin" style={styles.link}>Admin Dashboard</Link>
           )}
           <div style={styles.authLinks}>
             {user && (
