@@ -88,7 +88,7 @@ const DeliveryNudge: React.FC<DeliveryNudgeProps> = ({ lastDeliveryDate, hasAnyO
         <div style={styles.sectionContainer}>
           <p style={styles.nudgeText}>First time ordering? Browse the catalog and update your profile to get started.</p>
           <div style={styles.nudgeActions}>
-            <Link to="/catalog" style={styles.shopButton}>Browse Catalog</Link>
+            <Link to="/catalog" style={styles.shopButton}>Make Your First Order</Link>
             <Link to="/profile" style={styles.nudgeSecondaryButton}>Update Profile</Link>
           </div>
         </div>
@@ -154,7 +154,7 @@ const AuthenticatedHome: React.FC = () => {
         <div style={styles.sectionContainer}>
           <h1 style={styles.welcomeTitle}>Welcome back, {user?.username}!</h1>
           <p style={styles.welcomeSubtitle}>What are you shopping for today?</p>
-          <Link to="/catalog" style={styles.shopButton}>Browse Catalog</Link>
+          <Link to="/catalog" style={styles.shopButton}>Start Shopping</Link>
         </div>
       </section>
 
@@ -190,7 +190,7 @@ const AuthenticatedHome: React.FC = () => {
           ) : recentOrders.length === 0 ? (
             <div style={styles.emptyOrders}>
               <p style={styles.mutedText}>No orders yet.</p>
-              <Link to="/catalog" style={styles.shopButton}>Start Shopping</Link>
+              <Link to="/catalog" style={styles.shopButton}>Browse Catalog</Link>
             </div>
           ) : (
             <div style={styles.ordersGrid}>
