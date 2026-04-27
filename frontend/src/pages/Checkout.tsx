@@ -5,6 +5,7 @@ import { Elements, CardElement, useStripe, useElements } from "@stripe/react-str
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
+import { useCart } from "../context/CartContext";
 
 interface SavedAddress {
     id: number;
@@ -241,6 +242,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
 
 const Checkout: React.FC = () => {
     const { user, loading: authLoading } = useAuth();
+    const { fetchCart } = useCart();
     const navigate = useNavigate();
     const [checkout, setCheckout] = useState<CheckoutResponse | null>(null);
     const [loading, setLoading] = useState(true);
@@ -439,7 +441,7 @@ const Checkout: React.FC = () => {
                                     <CheckoutForm
                                         clientSecret={checkout.payment_intent.client_secret}
                                         orderId={checkout.order_id}
-                                        onSuccess={() => setPaymentSuccess(true)}
+                                        onSuccess={() => { fetchCart(); setPaymentSuccess(true); }}
                                         street={street}       setStreet={setStreet}
                                         city={city}           setCity={setCity}
                                         state={addrState}     setState={setAddrState}
