@@ -239,6 +239,28 @@ def fetch_order_detail(order_id: int) -> Optional[Dict]:
         (order_id,),
     )
     trip_row = cursor.fetchone()
+
+    cursor.execute(
+        """
+        SELECT SubstitutionPreference, Notes
+        FROM CustomerProfile
+        WHERE UserID = %s
+        """,
+        (row["customer_id"],),
+    )
+    profile_row = cursor.fetchone()
+
+    cursor.execute(
+        """
+        SELECT PreferenceType, PreferenceValue, Source
+        FROM CustomerPreference
+        WHERE UserID = %s
+        ORDER BY PreferenceType
+        """,
+        (row["customer_id"],),
+    )
+    pref_rows = cursor.fetchall()
+
     cursor.close()
     conn.close()
 
@@ -281,4 +303,12 @@ def fetch_order_detail(order_id: int) -> Optional[Dict]:
         },
         "items": items,
         "trip": trip,
+        "customer_preferences": {
+            "substitution_preference": profile_row["SubstitutionPreference"] if profile_row else None,
+            "notes": profile_row["Notes"] if profile_row else None,
+            "preferences": [
+                {"type": r["PreferenceType"], "value": r["PreferenceValue"], "source": r["Source"]}
+                for r in pref_rows
+            ],
+        },
     }

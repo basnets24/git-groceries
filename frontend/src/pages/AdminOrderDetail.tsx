@@ -31,6 +31,12 @@ interface OrderTrip {
     eta: string | null;
 }
 
+interface CustomerPreferences {
+    substitution_preference: string | null;
+    notes: string | null;
+    preferences: Array<{ type: string; value: string; source: string | null }>;
+}
+
 interface OrderDetail {
     order_id: number;
     status: string;
@@ -38,6 +44,7 @@ interface OrderDetail {
     address: { street: string; city: string; state: string; zip: string };
     items: OrderItem[];
     trip: OrderTrip | null;
+    customer_preferences: CustomerPreferences | null;
 }
 
 const loadGoogleMaps = (apiKey: string): Promise<void> =>
@@ -61,6 +68,9 @@ const loadGoogleMaps = (apiKey: string): Promise<void> =>
         s.onerror = () => reject(new Error("Failed to load Google Maps"));
         document.head.appendChild(s);
     });
+
+const formatPrefType = (type: string) =>
+    type.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
 
 const AdminOrderDetail: React.FC = () => {
     const { orderId } = useParams<{ orderId: string }>();
@@ -172,20 +182,42 @@ const AdminOrderDetail: React.FC = () => {
 
                 {order && (
                     <>
-                        <header style={styles.header}>
-                            <div>
-                                <p style={styles.eyebrow}>Order #{order.order_id}</p>
-                                <h1 style={styles.title}>
-                                    {order.customer.username} · {order.status}
-                                </h1>
-                                <p style={styles.subtitle}>
-                                    {order.customer.email} · Shipping to{" "}
-                                    {order.address.city
-                                        ? `${order.address.street}, ${order.address.city}, ${order.address.state} ${order.address.zip}`
-                                        : order.address.street || "—"}
-                                </p>
-                            </div>
-                        </header>
+                        <div style={styles.topGrid}>
+                            <header style={styles.header}>
+                                <div>
+                                    <p style={styles.eyebrow}>Order #{order.order_id}</p>
+                                    <h1 style={styles.title}>
+                                        {order.customer.username} · {order.status}
+                                    </h1>
+                                    <p style={styles.subtitle}>
+                                        {order.customer.email} · Shipping to{" "}
+                                        {order.address.city
+                                            ? `${order.address.street}, ${order.address.city}, ${order.address.state} ${order.address.zip}`
+                                            : order.address.street || "—"}
+                                    </p>
+                                </div>
+                            </header>
+
+                            {order.customer_preferences && (
+                                <section style={{ ...styles.card, padding: "1.25rem 1.5rem" }}>
+                                    <h2 style={{ ...styles.cardTitle, fontSize: "1.25rem", marginBottom: "0.5rem" }}>Customer Preferences</h2>
+                                    <p style={styles.prefLine}>
+                                        <span style={styles.prefLabel}>Substitutions:</span>{" "}
+                                        {order.customer_preferences.substitution_preference || "—"}
+                                    </p>
+                                    <p style={styles.prefLine}>
+                                        <span style={styles.prefLabel}>Notes:</span>{" "}
+                                        {order.customer_preferences.notes || "—"}
+                                    </p>
+                                    {order.customer_preferences.preferences.map((p, i) => (
+                                        <p key={i} style={styles.prefLine}>
+                                            <span style={styles.prefLabel}>{formatPrefType(p.type)}:</span>{" "}
+                                            {formatPrefType(p.value)}
+                                        </p>
+                                    ))}
+                                </section>
+                            )}
+                        </div>
 
                         <div style={styles.grid}>
                             <section style={styles.card}>
@@ -293,7 +325,6 @@ const styles: { [key: string]: React.CSSProperties } = {
         backgroundColor: "#ffffff",
         borderRadius: 12,
         boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
-        marginBottom: "1.5rem",
     },
     eyebrow: {
         letterSpacing: "0.3em",
@@ -304,6 +335,12 @@ const styles: { [key: string]: React.CSSProperties } = {
     },
     title: { margin: 0, fontSize: "1.75rem", color: "#1b4332" },
     subtitle: { marginTop: "0.5rem", color: "#495057" },
+    topGrid: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "1.5rem",
+        marginBottom: "1.5rem",
+    },
     grid: {
         display: "grid",
         gridTemplateColumns: "1fr 1fr",
@@ -374,6 +411,15 @@ const styles: { [key: string]: React.CSSProperties } = {
         color: "#a4161a",
         borderRadius: 8,
         marginBottom: "1rem",
+    },
+    prefLine: {
+        fontSize: "0.9rem",
+        color: "#333",
+        margin: "0 0 0.25rem",
+    },
+    prefLabel: {
+        fontWeight: 600,
+        color: "#495057",
     },
 };
 
