@@ -1,9 +1,12 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import { useAuth } from "../context/AuthContext";
 
 const Register: React.FC = () => {
+  const { setSession } = useAuth();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     username: "",
     email: "",
@@ -11,7 +14,6 @@ const Register: React.FC = () => {
     confirmPassword: "",
   });
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -21,7 +23,6 @@ const Register: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setSuccess(null);
 
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match");
@@ -44,10 +45,12 @@ const Register: React.FC = () => {
       const data = await response.json();
 
       if (response.ok) {
-        setSuccess("Account created! Redirecting to login...");
-        setTimeout(() => {
-          window.location.href = "/login";
-        }, 1500);
+        setSession(data.token, {
+          customerID: data.user.customerID,
+          username: data.user.username,
+          role: data.user.role,
+        });
+        navigate("/");
       } else {
         setError(data.error || "Registration failed");
       }
@@ -67,7 +70,7 @@ const Register: React.FC = () => {
             <h2 style={styles.title}>Create Account</h2>
             
             {error && <div style={styles.errorBox}>{error}</div>}
-            {success && <div style={styles.successBox}>{success}</div>}
+
 
             <div style={styles.field}>
               <label htmlFor="username" style={styles.label}>
@@ -189,16 +192,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: "6px",
     marginBottom: "1.25rem",
     border: "1px solid #f5c6cb",
-    textAlign: "center",
-    fontSize: "0.95rem",
-  },
-  successBox: {
-    backgroundColor: "#d4edda",
-    color: "#155724",
-    padding: "0.75rem",
-    borderRadius: "6px",
-    marginBottom: "1.25rem",
-    border: "1px solid #c3e6cb",
     textAlign: "center",
     fontSize: "0.95rem",
   },

@@ -42,8 +42,17 @@ def register():
         raise ValidationError(f"Missing fields: {', '.join(missing)}")
 
     services.register_user(username, email, password)
+    token, user = services.authenticate_user(username, password)
 
-    return jsonify({"message": "User created successfully"}), 201
+    return jsonify({
+        "message": "User created successfully",
+        "token": token,
+        "user": {
+            "customerID": user.id,
+            "username": user.username,
+            "role": user.role.value,
+        },
+    }), 201
 
 
 @auth_bp.route("/api/auth/me", methods=["GET"])
