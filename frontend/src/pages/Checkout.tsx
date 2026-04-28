@@ -108,7 +108,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
             return;
         }
 
-        const { error: confirmError } = await stripe.confirmCardPayment(clientSecret, {
+        const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
             payment_method: {
                 card: elements.getElement(CardElement)!,
                 billing_details: {},
@@ -117,6 +117,12 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
 
         if (confirmError) {
             setError(confirmError.message || "Payment failed");
+            setProcessing(false);
+            return;
+        }
+
+        if (!paymentIntent || paymentIntent.status !== "succeeded") {
+            setError("Payment was not completed. Please try again.");
             setProcessing(false);
             return;
         }
@@ -368,7 +374,7 @@ const Checkout: React.FC = () => {
 
                     {error && (
                         <div style={styles.errorContainer}>
-                            <p style={styles.errorText}>Error: {error}</p>
+                            <p style={styles.errorText}>{error}</p>
                             <button
                                 onClick={() => navigate("/cart")}
                                 style={styles.backButton}

@@ -364,7 +364,7 @@ def _already_assigned(cursor, order_ids: Iterable[int]) -> List[int]:
 
 def _robot_is_available(cursor, robot_id: int) -> bool:
     cursor.execute(
-        "SELECT Status FROM Robot WHERE RobotID = %s",
+        "SELECT Status FROM Robot WHERE RobotID = %s FOR UPDATE",
         (robot_id,),
     )
     row = cursor.fetchone()
