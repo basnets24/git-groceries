@@ -5,7 +5,6 @@ from . import repository
 
 
 def get_cart(customer_id: int) -> List[Dict]:
-    repository.cancel_stale_inprogress_orders()
     items = repository.fetch_active_cart_items(customer_id)
     for item in items:
         item["price"] = float(item["price"])

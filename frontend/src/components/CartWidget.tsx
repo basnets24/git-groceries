@@ -9,7 +9,7 @@ const CartWidget: React.FC = () => {
   const { cartItemCount, cartTotal, cartOpen, setCartOpen } = useCart();
   const { pathname } = useLocation();
 
-  if (!user || user.role !== "CUSTOMER" || pathname === "/cart") return null;
+  if (!user || user.role !== "CUSTOMER" || pathname === "/cart" || pathname === "/checkout") return null;
 
   return (
     <>

@@ -43,6 +43,12 @@ def _build_order_summary(items: List[Dict]) -> Dict:
 
 
 def create_checkout_session(customer_id: int) -> Dict:
+    try:
+        from modules.cart.repository import cancel_stale_inprogress_orders
+        cancel_stale_inprogress_orders()
+    except Exception:
+        pass  # cleanup is best-effort — never block checkout
+
     items = cart_services.get_cart(customer_id)
     if not items:
         raise ValidationError("Cart is empty")
