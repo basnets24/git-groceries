@@ -181,6 +181,42 @@ def insert_order_item(
     conn.close()
 
 
+def cancel_stale_inprogress_orders(older_than_hours: int = 24) -> int:
+    """Release reserved inventory and cancel INPROGRESS orders idle for too long."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            UPDATE Inventory i
+            JOIN ShoppingOrderItem soi ON soi.ProductID = i.ProductID
+            JOIN ShoppingOrder so ON so.ShoppingOrderID = soi.ShoppingOrderID
+            SET i.ReservedQty = GREATEST(i.ReservedQty - soi.Quantity, 0)
+            WHERE so.Status = 'INPROGRESS'
+              AND so.CreatedAt < NOW() - INTERVAL %s HOUR
+            """,
+            (older_than_hours,),
+        )
+        cursor.execute(
+            """
+            UPDATE ShoppingOrder
+            SET Status = 'CANCELLED'
+            WHERE Status = 'INPROGRESS'
+              AND CreatedAt < NOW() - INTERVAL %s HOUR
+            """,
+            (older_than_hours,),
+        )
+        cancelled = cursor.rowcount
+        conn.commit()
+        return cancelled
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def delete_order_item(order_id: int, product_id: int) -> bool:
     conn = get_db_connection()
     cursor = conn.cursor()
