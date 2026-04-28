@@ -2,10 +2,13 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, List
 
 from db import get_db_connection
-from exceptions import NotFoundError, ValidationError
+from exceptions import NotFoundError, ServiceError, ValidationError
 from modules.cart import services as cart_services
 from modules.cart.repository import fetch_inprogress_order
 from modules.delivery.services import validate_delivery_zone
+
+
+MAX_ORDER_WEIGHT_LBS = 200.0
 
 
 def _format_decimal(value: Decimal) -> float:
@@ -49,6 +52,13 @@ def create_checkout_session(customer_id: int) -> Dict:
         raise NotFoundError("No active order found for customer")
 
     summary = _build_order_summary(items)
+
+    if summary["total_weight"] > MAX_ORDER_WEIGHT_LBS:
+        raise ValidationError(
+            f"Order weight ({summary['total_weight']:.1f} lbs) exceeds the "
+            f"{MAX_ORDER_WEIGHT_LBS:.0f} lb delivery limit. Please reduce your cart."
+        )
+
     from modules.payment import services as payment_services
 
     payment_intent = payment_services.get_or_create_payment_intent(
@@ -65,7 +75,7 @@ def create_checkout_session(customer_id: int) -> Dict:
 
 def complete_order(order_id: int, customer_id: int, street: str = "", city: str = "", state: str = "", zip_code: str = "") -> None:
     """Finalize an order and persist payment/inventory side-effects."""
-    if street:
+    if any([street, city, state, zip_code]):
         full_address = ", ".join(p for p in [street, city, state, zip_code] if p)
         validate_delivery_zone(full_address)
 
@@ -104,8 +114,10 @@ def complete_order(order_id: int, customer_id: int, street: str = "", city: str 
         payment = cursor.fetchone()
         if payment is None:
             from modules.payment import services as payment_services
-            if not payment_services.sync_payment_from_stripe(order_id):
-                raise ValidationError("Payment has not been confirmed yet")
+            try:
+                payment_services.sync_payment_from_stripe(order_id)
+            except ServiceError as exc:
+                raise ValidationError(str(exc)) from exc
 
         cursor.execute(
             """

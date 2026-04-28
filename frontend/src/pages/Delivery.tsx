@@ -161,7 +161,7 @@ const Delivery: React.FC = () => {
                                     </p>
                                 )}
                                 <p style={styles.subtext}>
-                                    Your order is packed and waiting to be assigned to a delivery robot.
+                                    Your order is being packed and waiting to be assigned to a delivery robot.
                                 </p>
                             </div>
                         );

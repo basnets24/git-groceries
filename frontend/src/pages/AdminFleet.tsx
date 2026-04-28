@@ -760,6 +760,11 @@ const AdminFleet: React.FC = () => {
                           <span style={styles.capNum}>{oids.length}/{MAX_ORDERS_PER_TRIP}</span>
                         </div>
                       </div>
+                      {overWeight && (
+                        <p style={styles.overCapWarning}>
+                          Over 200 lb limit — remove an order or reassign to another robot.
+                        </p>
+                      )}
                       {oids.map((oid) => {
                         const order = orders.find((o) => o.order_id === oid);
                         return (
@@ -795,9 +800,13 @@ const AdminFleet: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    style={styles.primaryButton}
+                    style={{
+                      ...styles.primaryButton,
+                      opacity: submitting || Object.keys(assignmentGroups).some((rid) => groupWeight(Number(rid)) > MAX_WEIGHT_LBS) ? 0.5 : 1,
+                      cursor: submitting || Object.keys(assignmentGroups).some((rid) => groupWeight(Number(rid)) > MAX_WEIGHT_LBS) ? "not-allowed" : "pointer",
+                    }}
                     onClick={handleConfirm}
-                    disabled={submitting}
+                    disabled={submitting || Object.keys(assignmentGroups).some((rid) => groupWeight(Number(rid)) > MAX_WEIGHT_LBS)}
                   >
                     {submitting ? "Dispatching…" : "Confirm & dispatch"}
                   </button>
@@ -1133,6 +1142,15 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderTop: "1px dashed #dee2e6",
   },
   muted: { color: "#6c757d", margin: 0 },
+  overCapWarning: {
+    margin: "0.25rem 0 0",
+    padding: "0.4rem 0.6rem",
+    backgroundColor: "#ffe3e3",
+    color: "#a4161a",
+    borderRadius: 6,
+    fontSize: "0.8rem",
+    fontWeight: 600,
+  },
   viewTripButton: {
     border: "1px solid #1b4332",
     background: "none",

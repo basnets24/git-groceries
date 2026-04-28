@@ -35,7 +35,15 @@ class GoogleMapsClient:
             data = response.json()
             
             if data.get("status") == "OK" and data.get("results"):
-                location = data["results"][0]["geometry"]["location"]
+                result = data["results"][0]
+                if result.get("partial_match"):
+                    return {
+                        "address": address,
+                        "lat": None,
+                        "lng": None,
+                        "status": "PARTIAL_MATCH",
+                    }
+                location = result["geometry"]["location"]
                 return {
                     "address": address,
                     "lat": location["lat"],
