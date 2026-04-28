@@ -1,162 +1,221 @@
-# OFS Food Delivery Service: Updated Test Plan Summary
+# OFS Food Delivery Service — Test Plan
 
 **Group #4**  
-Sneha Basnet, Diya Dalal, Ansh Dhakalia, Kaizan Satta, Andy Van, Victoria Vo
+Members: Sneha Basnet, Diya Dalal, Ansh Dhakalia, Kaizan Satta, Andy Van, Victoria Vo
 
-CS160 Software Engineering  
-San Jose State University  
+CS160 Software Engineering — San Jose State University  
 Instructor: Frank Butt  
 Submission Date: February 25, 2025  
 Last Updated: April 27, 2026
 
+---
+
 ## 1. Purpose
 
-This document summarizes the test strategy for the OFS platform and reflects the current state of the implemented test suite. The goal is to validate the full ordering, delivery, and administration workflow across backend services, gateway routing, and frontend UI. End-to-end testing was performed manually by the developers to verify the full user journey across the stack.
+This document describes the test strategy for the OFS platform and reflects the verified state of the implemented test suite. The goal is to validate the full ordering, delivery, and administration workflow across backend services, gateway routing, and frontend UI. End-to-end testing was performed manually by the developers to verify the full user journey across the stack.
+
+---
 
 ## 2. Test Strategy
 
 Testing is organized into four layers:
 
-- Unit testing for individual service logic such as cart reservation, pricing, and auth.
-- Integration testing for communication between frontend, backend, database, gateway, and third-party services.
-- End-to-end testing for complete customer and staff workflows, performed manually by the developers.
-- Security testing for authentication, authorization, and role-based access control.
+| Layer | Scope |
+|---|---|
+| **Unit** | Individual service logic: cart reservation, pricing, auth |
+| **Integration** | Communication between frontend, backend, database, gateway, and Stripe/Google Maps |
+| **End-to-End** | Complete customer and staff workflows, performed manually by developers |
+| **Security** | Authentication, authorization, and role-based access control |
 
 The stack runs in Docker with React frontend, Apache proxy, Flask backend, and MySQL.
 
-## 3. Current Test Environment
+---
 
-Implemented tests run against real services and real database state:
+## 3. Test Environment
 
-- PyTest uses a real MySQL database with per-module setup and teardown.
-- Stripe payment tests use the sandbox environment.
-- Google Maps is exercised for address validation and routing logic.
-- Frontend component tests run with Vitest and jsdom.
+All automated tests run against real services and real database state:
 
-## 4. Implemented Coverage
+- **PyTest** uses a real MySQL database with per-module setup and teardown via `conftest.py`.
+- **Stripe** payment tests use the sandbox environment with real `PaymentIntent` records.
+- **Google Maps** is exercised for address validation and delivery zone routing.
+- **Vitest** runs frontend component tests with `jsdom`.
+
+---
+
+## 4. Coverage by Area
 
 ### 4.1 Authentication and Authorization
 
-Status: Covered
+**Status: Covered**  
+**File:** [tests/test_auth.py](../tests/test_auth.py)
 
-- Login succeeds for CUSTOMER, EMPLOYEE, and MANAGER roles.
-- Invalid credentials, missing fields, and bad tokens fail correctly.
-- Role assignment is restricted by privilege level.
-- RBAC blocks CUSTOMER and EMPLOYEE accounts from unauthorized admin paths.
+| Class | Tests | What is Verified |
+|---|---|---|
+| `TestRegister` | 4 | Duplicate username/email rejected; missing fields; weak password rejected |
+| `TestLogin` | 5 | Login by email and username; wrong password; nonexistent user; missing fields |
+| `TestMe` | 3 | Valid token; no token; bad/malformed token |
+| `TestRoleAssignment` | 4 | Superadmin and manager can assign EMPLOYEE; manager cannot self-elevate; customer blocked |
+| `TestUserSearch` | 3 | Search by email; query too short; customer cannot search |
+| `TestRbacCustomerBlocked` | 11 | Customer blocked from inventory, product admin, orders, robots, dispatch, revenue, trips |
+| `TestRbacEmployeeBlocked` | 3 | Employee blocked from robot location updates, role assignment, user search |
+| `TestRbacNoToken` | 4 | Unauthenticated requests rejected on inventory, orders, revenue, dispatch |
 
-Test files:
+**Subtotal: 37 tests**
 
-- tests/test_auth.py
+---
 
 ### 4.2 Product Catalog and Inventory
 
-Status: Covered
+**Status: Partially covered**  
+**Files:** [tests/test_endpoints.sh](../tests/test_endpoints.sh), [tests/test_auth.py](../tests/test_auth.py)
 
-- Product creation and inventory updates are tested.
-- Invalid inputs such as negative quantity and missing fields are rejected.
-- CUSTOMER access to product and inventory admin endpoints is blocked.
+- Product creation and inventory updates are tested via shell scripts.
+- Invalid inputs (negative quantity, missing fields) are rejected.
+- Customer access to product and inventory admin endpoints is blocked (covered in `TestRbacCustomerBlocked`).
+- Gap: no dedicated PyTest suite for full catalog CRUD; shell scripts provide smoke-level coverage.
 
-Test files:
-
-- tests/test_endpoints.sh
-- tests/test_auth.py
+---
 
 ### 4.3 Shopping Cart
 
-Status: Covered
+**Status: Covered**  
+**File:** [tests/test_cart.py](../tests/test_cart.py)
 
-- Adding, increasing, decreasing, and removing cart items are covered.
-- Inventory reservation stays atomic under concurrent access.
-- Oversell conflicts are handled correctly.
+| Class | Tests | What is Verified |
+|---|---|---|
+| `TestCartReservation` | 7 | Add/increase/decrease/remove items; oversell returns 409; concurrent reservation of last units stays atomic |
+| `TestCartAuth` | 4 | No token (401); wrong customer (403); missing product ID (400); nonexistent product (404) |
 
-Test files:
+**Subtotal: 11 tests**
 
-- tests/test_cart.py
+---
 
 ### 4.4 Customer Profiles and Addresses
 
-Status: Covered
+**Status: Covered**  
+**Files:** [tests/test_customer_profiles.sh](../tests/test_customer_profiles.sh), [tests/test_remaining_gaps.py](../tests/test_remaining_gaps.py)
 
-- Profile read and update flows are covered.
+- Profile read and update flows are covered via shell scripts (14 curl-based checks).
 - Address create, edit, default selection, and deletion are covered.
-- Remaining gap: automatic default address promotion after deletion is not explicitly asserted.
+- Automatic default address promotion after deletion is now explicitly asserted in `TestDefaultAddressPromotion`.
 
-Test files:
-
-- tests/test_customer_profiles.sh
+---
 
 ### 4.5 Checkout, Orders, and Payment
 
-Status: Covered
+**Status: Covered**  
+**File:** [tests/test_checkout.py](../tests/test_checkout.py)
 
-- Checkout calculates weight-based delivery fees correctly.
-- Successful orders decrement stock and clear reservations atomically.
-- Failed payments roll back cleanly without corrupting inventory.
-- Stripe sandbox behavior is exercised through real PaymentIntent records.
+| Class | Tests | What is Verified |
+|---|---|---|
+| `TestWeightBasedDeliveryFee` | 6 | Below/at/above weight threshold; fee removed when quantity drops; weight summed across items; weight multiplied by quantity |
+| `TestCheckoutEdgeCases` | 3 | No token (401); empty cart (400); response shape |
+| `TestCompleteOrder` | 6 | Inventory decrements on completion; idempotency; 404 for nonexistent order; 400 for non-in-progress order; no token (401); multi-item decrement |
+| `TestPaymentFailureRollback` | 4 | No payment record rejected; pending Stripe intent rejected; failed payment leaves inventory unchanged; retry with success completes order |
 
-Test files:
+**Subtotal: 19 tests**
 
-- tests/test_checkout.py
+---
 
 ### 4.6 Delivery Scheduling and Robot Routing
 
-Status: Covered
+**Status: Covered**  
+**Files:** [tests/test_dispatch.py](../tests/test_dispatch.py), [tests/test_delivery_zone.py](../tests/test_delivery_zone.py), [tests/test_trip_completion.py](../tests/test_trip_completion.py)
 
-- Dispatch respects the 10-order and 200-lb trip limits.
-- Auto-dispatch splits work across robots correctly.
-- Delivery zone validation is enforced for in-range and out-of-range addresses.
-- Robot state transitions are covered, including returning and reset to IDLE.
+| File / Class | Tests | What is Verified |
+|---|---|---|
+| `TestDispatchConstraints` | 10 | Auth guards; max-orders-per-trip limit; duplicate robot/order across groups; non-idle robot (409); nonexistent orders (404); weight limit (400); valid dispatch creates trip and updates robot state |
+| `TestAutoDispatch` | 7 | Auth guards; grace window skips recent orders; no idle robots skips dispatch; expired order dispatched; weight overload splits across robots; order-count overflow splits across robots |
+| `TestValidateZoneEndpoint` | 9 | Auth guard; missing/empty address (400); addresses inside, near edge, and outside delivery radius; unresolvable address returns 400 not 500; response shape |
+| `TestCompleteOrderZoneValidation` | 4 | Out-of-range address blocks order completion; order stays in-progress after rejection; valid address does not block; no address skips zone check |
+| `TestLastStopCompletesTrip` | 3 | Order marked delivered; trip marked completed; robot transitions to RETURNING |
+| `TestReturnEtaResetsRobot` | 2 | Robot becomes IDLE after return ETA elapses; stays RETURNING before ETA |
+| `TestPartialTripCompletion` | 3 | First stop delivered keeps trip in-progress and robot dispatched; all stops delivered closes trip |
+| `TestTripCompletionGuards` | 4 | No token (401); missing order ID (400); order not in trip (400); wrong customer blocked |
 
-Test files:
+**Subtotal: 42 tests**
 
-- tests/test_dispatch.py
-- tests/test_delivery_zone.py
-- tests/test_trip_completion.py
+---
 
 ### 4.7 Gateway / Proxy
 
-Status: Partially covered
+**Status: Partially covered**  
+**File:** [tests/test_gateway_proxy.py](../tests/test_gateway_proxy.py)
 
-- Apache forwards health and authenticated requests correctly.
-- HTTPS-only enforcement was not validated because the local Apache setup did not include TLS termination or redirect rules.
-- Timeout failure handling was not fully validated because it depends on infrastructure-level gateway behavior and upstream timeout configuration not reproduced in the local environment.
+| Test | What is Verified |
+|---|---|
+| `test_gateway_health_matches_backend` | Apache health route response matches direct backend response |
+| `test_gateway_keeps_api_prefix` | Gateway preserves `/api/` prefix when forwarding requests |
+| `test_gateway_forwards_auth_token` | Authorization header is forwarded correctly to the backend |
 
-Test files:
-- tests/test_gateway_proxy.py
+**Subtotal: 3 tests**
+
+Known gaps (infrastructure-dependent, not exercised locally):
+
+- **HTTPS enforcement** — local Apache setup does not include TLS termination or redirect rules.
+- **Timeout failure handling** — requires infrastructure-level proxy timeout and upstream failure configuration not available locally.
+
+---
 
 ### 4.8 Frontend UI
 
-Status: Covered
+**Status: Covered**  
+**Files:** [frontend/src/App.test.tsx](../frontend/src/App.test.tsx), [frontend/src/\_\_tests\_\_/](../frontend/src/__tests__/)
 
-- Login UI is covered for all roles.
-- Product catalog browsing and category filtering are covered.
-- Cart and inventory dashboard UI behavior are covered.
-- Register and guest home flows are covered.
+| File | Tests | What is Verified |
+|---|---|---|
+| `App.test.tsx` | 2 | Guest home renders; register shows password-mismatch error |
+| `Login.test.tsx` | 5 | Form renders; login succeeds for CUSTOMER, EMPLOYEE, and MANAGER; error on invalid credentials |
+| `Register.test.tsx` | 1 | Validation error when passwords do not match |
+| `Home.test.tsx` | 1 | Guest home experience renders |
+| `Catalog.test.tsx` | 2 | Products and categories render from API; category filtering works |
+| `Cart.test.tsx` | 3 | Empty state; items with price and quantity controls; delivery charge for items ≥ 20 lbs |
+| `Inventory.test.tsx` | 3 | Stock levels displayed for employee; category view and management; low-stock warning below threshold |
 
-Test files:
+**Subtotal: 17 Vitest tests**
 
-- frontend/src/App.test.tsx
-- frontend/src/__tests__/Home.test.tsx
-- frontend/src/__tests__/Register.test.tsx
-- frontend/src/__tests__/Login.test.tsx
-- frontend/src/__tests__/Catalog.test.tsx
-- frontend/src/__tests__/Cart.test.tsx
-- frontend/src/__tests__/Inventory.test.tsx
+---
+
+### 4.9 Additional Gap Coverage
+
+**File:** [tests/test_remaining_gaps.py](../tests/test_remaining_gaps.py)
+
+Added to close specific gaps identified during review:
+
+| Class | Tests | What is Verified |
+|---|---|---|
+| `TestOrderHistoryEndpoint` | 1 | Customer can retrieve completed order history via `GET /api/orders` |
+| `TestDefaultAddressPromotion` | 1 | Deleting the default address automatically promotes the next address to default |
+| `TestTokenExpiryBehavior` | 1 | An expired JWT token is rejected with 401 |
+
+**Subtotal: 3 tests**
+
+---
 
 ## 5. Metrics Summary
 
-- Approximately 108 automated PyTest cases cover the backend and gateway layers.
-- 17 Vitest component tests cover the frontend UI.
-- All critical backend paths currently pass.
-- Overall coverage is approximately 95%.
+| Layer | Files | Test Count | Status |
+|---|---|---|---|
+| PyTest (backend + gateway) | 8 `.py` files | **115** | All passing |
+| Shell scripts | 2 `.sh` files | ~14 curl checks | Run manually |
+| Vitest (frontend) | 7 `.tsx` files | **17** | All passing |
+| **Total automated** | | **132** | |
+
+- Estimated overall coverage: **~90%**
+- All critical backend paths pass.
+
+---
 
 ## 6. Remaining Gaps
 
-The following area still needs additional test coverage:
+| Gap | Reason | Impact |
+|---|---|---|
+| Gateway HTTPS enforcement | TLS termination not enabled in local Apache setup | Low — enforced at deployment layer |
+| Gateway timeout failure handling | Requires infrastructure-level proxy configuration not available locally | Low — depends on upstream infra |
+| Product catalog full CRUD (PyTest) | Only shell-script coverage; no dedicated PyTest class | Medium — currently verified manually |
 
-- Gateway HTTPS enforcement, which was not implemented in the local Apache proxy setup because TLS termination was not enabled.
-- Gateway timeout failure handling, which requires infrastructure-level testing of proxy timeout and upstream failure behavior.
+---
 
 ## 7. Final Assessment
 
-The OFS test effort includes unit testing, integration testing, security testing, and developer-performed end-to-end testing. The project is in good shape for core functionality, with strong coverage across authentication, cart logic, checkout, dispatch, and frontend UI. The main remaining limitations are gateway-level HTTPS enforcement and timeout failure handling, both of which depend on deployment and infrastructure configuration beyond the current local test setup.
+The OFS test suite covers authentication, cart logic, checkout, dispatch, delivery zone validation, robot trip lifecycle, and frontend UI with 132 automated tests across 15 test files. Three previously noted gaps, order history, default address promotion, and token expiry, have been closed in `test_remaining_gaps.py`. The two remaining infrastructure-dependent gaps (gateway HTTPS enforcement and timeout handling) cannot be reproduced in the local Docker environment and depend on production deployment configuration.
