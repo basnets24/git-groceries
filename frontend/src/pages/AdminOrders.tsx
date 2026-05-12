@@ -9,8 +9,6 @@ const STATUS_LABELS: Record<string, string> = {
   PAID:       "Paid",
   DISPATCHED: "Dispatched",
   DELIVERED:  "Delivered",
-  REFUNDED:   "Refunded",
-  VOID:       "Void",
 };
 
 interface AdminOrder {
@@ -94,7 +92,7 @@ const AdminOrders: React.FC = () => {
                         </p>
                     </div>
                     <div style={styles.filterRow}>
-                        {["ALL", "INPROGRESS", "PAID", "DISPATCHED", "DELIVERED", "REFUNDED", "VOID"].map((s) => (
+                        {["ALL", "INPROGRESS", "PAID", "DISPATCHED", "DELIVERED"].map((s) => (
                             <button
                                 key={s}
                                 onClick={() => setFilter(s)}
