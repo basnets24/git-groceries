@@ -38,10 +38,10 @@ VALUES
     ('Large Eggs Dozen',                   3.29,  1.50, 3, '/images/eggs.jpg',               TRUE),
 
     -- Bakery
-    ('Blueberry Muffins (8 count)',        7.99,  1.95, 4, '/images/blueberry-muffins.jpg',  TRUE),
+    ('Blueberry Muffins',        7.99,  1.95, 4, '/images/blueberry-muffins.jpg',  TRUE),
     ('Multigrain Sandwich Bread Loaf',     6.99,  1.45, 4, '/images/multigrain-loaf.jpg',    TRUE),
     ('Sourdough Loaf',                     5.85,  1.35, 4, '/images/sourdough.jpg',          TRUE),
-    ('Chocolate Chip Cookies (10 count)',  7.99,  0.75, 4, '/images/cookies.jpg',            TRUE),
+    ('Chocolate Chip Cookies',  7.99,  0.75, 4, '/images/cookies.jpg',            TRUE),
 
     -- Beverages
     ('Orange Soda',                        2.49,  0.75, 5, '/images/orange-soda.jpg',        TRUE),
